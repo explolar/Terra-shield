@@ -93,6 +93,7 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 
 const STAT_LABELS: Record<string, string> = {
   mean: "Mean index",
+  mean_class: "Mean class",
   max: "Max index",
   high_risk_pct: "High-risk area",
   high_risk_area_km2: "High-risk area",

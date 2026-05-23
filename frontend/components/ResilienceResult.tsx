@@ -237,7 +237,7 @@ function ahpLabel(
   labels: AhpResponse["labels"],
   key: string,
 ): string {
-  if (Array.isArray(labels)) return key.replace(/_/g, " ");
+  if (!labels || Array.isArray(labels)) return key.replace(/_/g, " ");
   return labels[key] ?? key.replace(/_/g, " ");
 }
 

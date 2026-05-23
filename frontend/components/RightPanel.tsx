@@ -88,6 +88,7 @@ export function RightPanel(props: RightPanelProps) {
               setState={setFlood}
               loading={loading}
               onRun={onRun}
+              ahpDefaults={ahpDefaults}
             />
           )}
           {moduleId === "climate" && (
@@ -127,7 +128,12 @@ export function RightPanel(props: RightPanelProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <ResultPanel moduleId={moduleId} layer={layer} />
+              <ResultPanel
+                moduleId={moduleId}
+                layer={layer}
+                activeFactors={activeFactors}
+                onToggleFactor={onToggleFactor}
+              />
             </motion.div>
           )}
           {!error && !loading && !layer && (
