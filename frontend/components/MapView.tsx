@@ -195,10 +195,18 @@ function IndiaBoundaries({
   zoom: number;
   onSelectState?: (name: string, bbox: [number, number, number, number]) => void;
 }) {
-  const outline = useStaticGeo("/geo/india_outline.geojson");
-  const states = useStaticGeo("/geo/india_states.geojson");
-  // Districts are large (~340 KB); only fetch once the user zooms in.
-  const districts = useStaticGeo("/geo/india_districts.geojson", zoom >= 7);
+  // The India boundaries are simplified, so they only look right when zoomed out
+  // for context. At AOI/analysis zoom we hide them — the basemap, AOI rectangle
+  // and analysis layer are what matter, and simplified borders would look
+  // misaligned against the basemap's true coastline/borders.
+  const showOutline = zoom <= 6;
+  const showStates = zoom <= 7;
+  const showDistricts = zoom >= 7 && zoom <= 8;
+
+  const outline = useStaticGeo("/geo/india_outline.geojson", showOutline);
+  const states = useStaticGeo("/geo/india_states.geojson", showStates);
+  // Districts are large (~340 KB); only fetch in the regional zoom band.
+  const districts = useStaticGeo("/geo/india_districts.geojson", showDistricts);
 
   // States become clickable AOI-selectors only when a handler is provided.
   const interactiveStates = !!onSelectState;
@@ -244,8 +252,8 @@ function IndiaBoundaries({
 
   return (
     <>
-      {/* faint state borders (clickable when AOI selection enabled) */}
-      {states && (
+      {/* faint state borders (clickable when AOI selection enabled) — context zoom */}
+      {showStates && states && (
         <GeoJSON
           key={`states-${interactiveStates}`}
           data={states as any}
@@ -258,8 +266,8 @@ function IndiaBoundaries({
         />
       )}
 
-      {/* districts only at higher zoom for performance */}
-      {districts && zoom >= 7 && (
+      {/* districts in the regional zoom band only */}
+      {showDistricts && districts && (
         <GeoJSON
           key="districts"
           data={districts as any}
@@ -267,8 +275,8 @@ function IndiaBoundaries({
         />
       )}
 
-      {/* always-on national outline (glowing) — drawn last so it reads on top */}
-      {outline && (
+      {/* national outline (glowing) — only when zoomed out to country view */}
+      {showOutline && outline && (
         <GeoJSON key="outline" data={outline as any} style={OUTLINE_STYLE as any} />
       )}
     </>
