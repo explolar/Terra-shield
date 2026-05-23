@@ -195,3 +195,69 @@ def anomaly(aoi, scenario="ssp585", variable="pr", horizon="2050s") -> dict[str,
     res = projection(aoi, scenario, variable, horizon)
     res["product"] = "anomaly"
     return res
+
+
+# --------------------------------------------------------------------------- #
+# ETCCDI climate-extreme indices (Zhang et al., 2011)
+# --------------------------------------------------------------------------- #
+EXTREME_INDICES = {
+    "rx1day": {"label": "Max 1-day precipitation", "unit": "mm", "kind": "precip"},
+    "r95p": {"label": "Very-wet-day precip (>95th pct)", "unit": "mm", "kind": "precip"},
+    "cdd": {"label": "Consecutive dry days", "unit": "days", "kind": "dry"},
+    "hot_days": {"label": "Hot days (Tmax > 35°C)", "unit": "days/yr", "kind": "heat"},
+}
+_HORIZON_FACTOR = {"2030s": 0.4, "2050s": 0.7, "2080s": 1.0}
+
+
+def extremes(aoi, scenario="ssp585", horizon="2050s", model="ensemble") -> dict[str, Any]:
+    """ETCCDI extreme-climate indices (Zhang et al., 2011), estimated by scaling
+    latitude-based baselines with the CMIP6 mean-change signal. Extremes intensify
+    faster than the mean (Clausius-Clapeyron ~7%/°C for heavy precip), captured by
+    an amplification factor. Deterministic; full daily ETCCDI is on the roadmap."""
+    import numpy as np
+
+    norm = aoi_mod.normalize(aoi)
+    if scenario not in SCENARIOS:
+        scenario = "ssp585"
+    if horizon not in HORIZONS:
+        horizon = "2050s"
+    lat = abs(norm["centroid"][1])
+    hf = _HORIZON_FACTOR[horizon]
+    warming = _SIGNAL[scenario]["tas"] * hf  # °C
+    wetting = _SIGNAL[scenario]["pr"] * hf   # fractional change in mean precip
+
+    base = {
+        "rx1day": float(np.interp(lat, [0, 15, 30, 45], [165, 110, 75, 55])),
+        "r95p": float(np.interp(lat, [0, 15, 30, 45], [720, 460, 290, 180])),
+        "cdd": float(np.interp(lat, [0, 15, 30, 45], [35, 70, 110, 150])),
+        "hot_days": float(np.interp(lat, [0, 15, 30, 45], [150, 105, 60, 18])),
+    }
+
+    indices = []
+    for key, meta in EXTREME_INDICES.items():
+        b = base[key]
+        if meta["kind"] == "precip":
+            proj = b * (1 + wetting * 1.8)        # heavy precip amplifies vs. mean
+        elif meta["kind"] == "dry":
+            proj = b * (1 + 0.05 + warming * 0.02)  # longer dry spells in a warmer climate
+        else:  # heat
+            proj = b + warming * 9.0               # ~9 extra hot days per °C (mid-latitude est.)
+        delta = proj - b
+        indices.append({
+            "key": key, "label": meta["label"], "unit": meta["unit"],
+            "baseline": round(b, 1), "projected": round(proj, 1),
+            "delta": round(delta, 1),
+            "pct_change": round(delta / max(b, 1e-6) * 100, 1),
+        })
+
+    return {
+        "module": "climate",
+        "product": "extremes",
+        "source": gee.mode(),
+        "scenario": scenario,
+        "horizon": horizon,
+        "model": model,
+        "indices": indices,
+        "reference": "ETCCDI indices (Zhang et al., 2011); CMIP6 mean-change scaling",
+        "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+    }

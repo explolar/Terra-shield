@@ -15,6 +15,69 @@ from . import demo, gee
 log = logging.getLogger("terrashield.geo.infra")
 
 
+def road_criticality(aoi: dict[str, Any], grid_n: int = 9) -> dict[str, Any]:
+    """Rank road segments by edge-betweenness centrality — the share of shortest
+    paths that traverse each segment. High-betweenness roads are the network's
+    critical links: losing them (e.g. to flooding) fragments connectivity the most
+    (Freeman, 1977; road-criticality literature). Deterministic; works offline.
+    """
+    import networkx as nx
+    import numpy as np
+
+    norm = aoi_mod.normalize(aoi)
+    bbox = norm["bbox"]
+    min_lon, min_lat, max_lon, max_lat = bbox
+    dlon = (max_lon - min_lon) / (grid_n - 1)
+    dlat = (max_lat - min_lat) / (grid_n - 1)
+    # Deterministic terrain field perturbs edge lengths so the lattice isn't trivial.
+    field = demo.smooth_field(bbox, grid_n, salt="infra:roads")
+
+    def coord(i, j):
+        return [round(min_lon + j * dlon, 5), round(max_lat - i * dlat, 5)]
+
+    g = nx.Graph()
+    for i in range(grid_n):
+        for j in range(grid_n):
+            for di, dj in ((0, 1), (1, 0)):
+                ni, nj = i + di, j + dj
+                if ni < grid_n and nj < grid_n:
+                    w = 1.0 + float(field[i, j] + field[ni, nj])  # longer through rough terrain
+                    g.add_edge((i, j), (ni, nj), weight=w)
+
+    bc = nx.edge_betweenness_centrality(g, weight="weight", normalized=True)
+    vmax = max(bc.values()) or 1.0
+    features = []
+    for (u, v), c in sorted(bc.items(), key=lambda kv: -kv[1]):
+        crit = c / vmax
+        features.append({
+            "type": "Feature",
+            "properties": {"criticality": round(crit, 3),
+                           "tier": "critical" if crit > 0.66 else "important" if crit > 0.33 else "normal"},
+            "geometry": {"type": "LineString", "coordinates": [coord(*u), coord(*v)]},
+        })
+
+    n_critical = sum(1 for f in features if f["properties"]["tier"] == "critical")
+    return {
+        "module": "infra",
+        "product": "road_criticality",
+        "source": "demo",
+        "tile_url": None,
+        "grid": {"type": "FeatureCollection", "features": features},
+        "legend": [
+            {"label": "Critical", "color": "#b91c1c"},
+            {"label": "Important", "color": "#f59e0b"},
+            {"label": "Normal", "color": "#64748b"},
+        ],
+        "stats": {
+            "segments": len(features),
+            "critical_segments": n_critical,
+            "method": "edge betweenness centrality (NetworkX)",
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": bbox, "centroid": norm["centroid"]},
+    }
+
+
 def exposure(aoi: dict[str, Any], hazard: str = "flood") -> dict[str, Any]:
     norm = aoi_mod.normalize(aoi)
     if gee.is_live():

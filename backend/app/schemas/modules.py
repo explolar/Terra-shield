@@ -51,6 +51,13 @@ class ProjectionRequest(BaseModel):
     model: str = "ensemble"
 
 
+class ExtremesRequest(BaseModel):
+    aoi: AOI
+    scenario: Literal["ssp245", "ssp585"] = "ssp585"
+    horizon: Literal["2030s", "2050s", "2080s"] = "2050s"
+    model: str = "ensemble"
+
+
 # ---- DroughtAI ------------------------------------------------------------ #
 class SpiRequest(BaseModel):
     aoi: AOI
@@ -65,6 +72,10 @@ class VegetationRequest(BaseModel):
 class ExposureRequest(BaseModel):
     aoi: AOI
     hazard: Literal["flood", "drought"] = "flood"
+
+
+class CriticalityRequest(BaseModel):
+    aoi: AOI
 
 
 # ---- GeoCopilot ----------------------------------------------------------- #

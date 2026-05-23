@@ -60,3 +60,19 @@ def test_drought_spi_in_range():
 def test_infra_exposure_subset_of_total():
     r = infra.exposure(AOI)
     assert r["stats"]["population_exposed"] <= r["stats"]["population_total"]
+
+
+def test_climate_extremes_increase_under_warming():
+    r = climate.extremes(AOI, "ssp585", "2080s")
+    assert len(r["indices"]) == 4
+    hot = next(i for i in r["indices"] if i["key"] == "hot_days")
+    rx = next(i for i in r["indices"] if i["key"] == "rx1day")
+    assert hot["projected"] >= hot["baseline"]   # more hot days in a warmer world
+    assert rx["projected"] >= rx["baseline"]     # heavier 1-day extremes
+
+
+def test_infra_road_criticality():
+    r = infra.road_criticality(AOI)
+    assert r["stats"]["segments"] > 0
+    vals = [f["properties"]["criticality"] for f in r["grid"]["features"]]
+    assert max(vals) <= 1.0 and min(vals) >= 0.0

@@ -53,6 +53,14 @@ def test_drought_and_infra():
     assert client.post("/api/v1/infra/exposure", json={"aoi": AOI}).status_code == 200
 
 
+def test_climate_extremes_and_road_criticality():
+    e = client.post("/api/v1/climate/extremes",
+                    json={"aoi": AOI, "scenario": "ssp585", "horizon": "2080s"})
+    assert e.status_code == 200 and len(e.json()["indices"]) == 4
+    c = client.post("/api/v1/infra/criticality", json={"aoi": AOI})
+    assert c.status_code == 200 and c.json()["stats"]["segments"] > 0
+
+
 def test_optimize_endpoints():
     assert client.get("/api/v1/optimize/ahp/default").json()["consistent"] is True
     s = client.post("/api/v1/optimize/shelters",
