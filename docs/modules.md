@@ -143,6 +143,26 @@ LLM summarization deepen on the roadmap.
 
 ---
 
+## Added since v0.1 (v0.2)
+
+| Module | Method | Path | Purpose |
+|--------|--------|------|---------|
+| FloodAI | POST | `/flood/multiyear` | Annual peak flood extent 2019–2024 + trend |
+| FloodAI | POST | `/flood/ml-risk` | ML flood-risk (GBM/XGBoost/RF) + SHAP importance |
+| ClimateLens | POST | `/climate/extremes` | ETCCDI indices (Rx1day, R95p, CDD, hot-days) |
+| InfraRisk | POST | `/infra/criticality` | Road-network edge-betweenness criticality |
+| WeatherCast | POST | `/weather/forecast` | Open-Meteo 1–16 day forecast + flood watch |
+| GroundwaterAI | POST | `/groundwater/storage` | GRACE storage anomaly + depletion trend |
+
+- **FloodAI/susceptibility** now uses the **11-factor AHP** model (`flood_factors.py`)
+  and returns `factor_urls` (per-factor tiles) + `ahp` (CR/λmax) on the live path.
+- **FloodAI/sar-extent** now uses the 6-layer calibrated mask and returns
+  `severity_url` + exposure stats (population, cropland + crop-loss USD, built-up).
+- Coarse modules (ClimateLens, GroundwaterAI) accept AOIs up to **1,000,000 km²**
+  (state/basin scale); fine modules keep the 50,000 km² cap.
+- **GeoCopilot** input is cleaned + injection-filtered; LLM output is bounded
+  (`backend/app/core/sanitize.py`).
+
 ## Data sources & licenses
 
 | Dataset | Use | Resolution | License |
@@ -155,3 +175,7 @@ LLM summarization deepen on the roadmap.
 | ESA WorldCover | land use | 10 m | CC-BY 4.0 |
 | WorldPop | population | 100 m | CC-BY 4.0 |
 | OpenStreetMap | roads, buildings | vector | ODbL |
+| NASA GRACE/GRACE-FO | groundwater / water storage anomaly | ~3° mascon | Open (NASA) |
+| MODIS MOD13/MOD16 | NDVI/VCI, evapotranspiration | 500 m–1 km | Open (NASA) |
+| JRC Global Surface Water | permanent water, flood frequency | 30 m | Open (EC JRC) |
+| Open-Meteo | weather / rainfall forecast | ~11 km | CC-BY 4.0 (free, no key) |

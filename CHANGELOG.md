@@ -3,6 +3,37 @@
 All notable changes to TerraShield AI are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: SemVer.
 
+## [0.2.0] — Live data, FluviaAI depth, water modules (unreleased)
+
+### Added
+- **Live Google Earth Engine** paths verified across FloodAI, ClimateLens,
+  DroughtAI, InfraRisk, GroundwaterAI (project-configurable; demo fallback intact).
+- **FloodAI depth** (from the FluviaAI methodology):
+  - **11-factor AHP-MCDM** susceptibility (`flood_factors.py`) — Saaty matrix,
+    eigenvector weights, CR validation (CR≈0.026), per-factor 1–5 layers.
+  - **6-layer calibrated SAR** mask + 3-class severity + crop-loss / built-up /
+    population exposure.
+  - **Multi-year** flood-extent trend (2019–2024).
+  - **ML flood-risk** classifiers (GBM/XGBoost/RF) + **SHAP** (`ml_flood.py`),
+    labelled by JRC historical flood occurrence.
+- **ClimateLens**: ETCCDI extreme indices (Rx1day, R95p, CDD, hot-days).
+- **DroughtAI**: scientifically-correct gamma-fit SPI (McKee 1993).
+- **InfraRisk**: road-network criticality via edge-betweenness (NetworkX).
+- **WeatherCast** (new module): Open-Meteo 1–16 day rainfall/weather forecast +
+  heavy-rain flood watch (free, no key).
+- **GroundwaterAI** (new module): NASA GRACE/GRACE-FO water-storage anomaly,
+  depletion trend (cm/yr) → stress class, CHIRPS−ET recharge proxy.
+- **GeoCopilot**: Llama (Groq/Ollama) wired and grounded; tools for every module;
+  **guardrails** — input cleaning + prompt-injection filter + output caps
+  (`core/sanitize.py`); per-call AOI cap so coarse (GRACE/CMIP6) data works at
+  state/basin scale.
+- **Frontend**: light/white responsive theme; India boundary overlays; UI panels
+  for all 9 modules incl. 11-slider AHP + per-factor toggles, SAR severity, multi-year,
+  ML+SHAP, extremes, criticality, WeatherCast, GroundwaterAI.
+
+### Changed
+- Tests grew to **27 geo-engine + 13 backend** (all green).
+
 ## [0.1.0] — Foundation (unreleased)
 
 ### Added

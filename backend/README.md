@@ -21,27 +21,33 @@ Runs in **demo mode** without Earth Engine credentials. Configure via env
 ```
 app/
 ├── main.py              app factory: middleware, routers, lifespan (GEE init)
-├── core/                config · logging (request-id) · cache (TTL) · ratelimit
+├── core/                config · logging (request-id) · cache (TTL) · ratelimit ·
+│                        sanitize (LLM guardrails / request cleaning)
 ├── api/
 │   ├── deps.py          shared dependencies (rate limiter)
-│   └── routes/          health · earthdata · flood · climate · drought ·
-│                        infra · optimize · copilot
+│   └── routes/          health · earthdata · flood · climate · drought · infra ·
+│                        optimize · forecast · groundwater · copilot
 ├── schemas/             pydantic request models + shared response models
-└── services/            llm.py (Llama: groq/ollama) · copilot.py (agent)
+└── services/            llm.py (Llama: groq/ollama) · copilot.py (agent) ·
+                         weather.py (Open-Meteo)
 ```
 
 ## Endpoints (prefix `/api/v1`)
 
 | Group | Routes |
 |-------|--------|
-| FloodAI | `POST /flood/susceptibility` · `/flood/sar-extent` · `/flood/road-risk` |
-| ClimateLens | `GET /climate/scenarios` · `POST /climate/projection` · `/climate/anomaly` |
+| FloodAI | `POST /flood/susceptibility` · `/flood/sar-extent` · `/flood/road-risk` · `/flood/multiyear` · `/flood/ml-risk` |
+| ClimateLens | `GET /climate/scenarios` · `POST /climate/projection` · `/climate/anomaly` · `/climate/extremes` |
 | DroughtAI | `POST /drought/spi` · `/drought/vegetation` |
-| InfraRisk | `POST /infra/exposure` |
+| InfraRisk | `POST /infra/exposure` · `/infra/criticality` |
 | ResilienceOR | `GET /optimize/ahp/default` · `POST /optimize/{ahp,topsis,shelters,evacuation,mitigation}` |
+| WeatherCast | `POST /weather/forecast` (Open-Meteo) |
+| GroundwaterAI | `POST /groundwater/storage` (GRACE) |
 | GeoCopilot | `GET /copilot/tools` · `POST /copilot/ask` |
 | EarthData | `GET /earthdata/{status,datasets,basemaps}` · `POST /earthdata/aoi/validate` |
 | system | `GET /health` · `/version` · `/cache/stats` |
+
+See [`api-examples.http`](api-examples.http) for ready-to-run requests.
 
 ## Tests
 

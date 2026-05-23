@@ -19,15 +19,20 @@ decoupled from the web layer: import it from FastAPI, a notebook, or a batch job
 | Module | Responsibility |
 |--------|----------------|
 | `gee.py` | Auth/init, `is_live()`, status, lazy `ee` import |
-| `aoi.py` | Parse/validate AOI, area, centroid, → `ee.Geometry` |
-| `indices.py` | Spectral indices (NDVI, etc.) |
+| `aoi.py` | Parse/validate AOI, area, centroid, → `ee.Geometry` (per-call area cap) |
+| `indices.py` | Spectral indices (NDVI, NDWI, MNDWI, SAVI, VCI) |
 | `demo.py` | Deterministic synthetic layers/grids for offline mode |
-| `tiles.py` | `ee.Image` → tile URL, legend builders |
-| `flood.py` | Susceptibility, SAR extent, road risk |
-| `climate.py` | NEX-GDDP-CMIP6 projections & anomalies |
-| `drought.py` | SPI, NDVI/VCI anomaly |
-| `infra.py` | Exposure overlays |
+| `tiles.py` | `ee.Image` → tile URL, color ramps, legend builders |
+| `flood.py` | Susceptibility, calibrated SAR extent + severity + exposure, road risk, multi-year |
+| `flood_factors.py` | 11-factor AHP-MCDM engine (Saaty matrix, eigenvector weights, CR, factor layers) |
+| `ml_flood.py` | ML flood-risk classifiers (GBM/XGBoost/RF) + SHAP, GRACE/JRC-labelled |
+| `climate.py` | NEX-GDDP-CMIP6 projections, anomalies, ETCCDI extreme indices |
+| `drought.py` | Gamma-fit SPI (McKee 1993), NDVI/VCI anomaly |
+| `infra.py` | Exposure overlays, road-network criticality (betweenness) |
+| `groundwater.py` | GRACE water-storage anomaly, depletion trend, recharge proxy |
+| `optimize.py` | ResilienceOR: AHP, TOPSIS, MCLP, Dijkstra, knapsack + AOI bridges |
 | `datasets.py` | Dataset catalog + licenses |
+| `data/` | `india_gazetteer.json` (492 states + districts) |
 
 ## Quick use
 
