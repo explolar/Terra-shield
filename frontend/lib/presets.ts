@@ -63,10 +63,14 @@ export function bboxToLeafletBounds(
   ];
 }
 
-export const DARK_BASEMAP = {
-  url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-  attribution: "© OpenStreetMap contributors, © CARTO",
+// Light Carto Positron basemap — clean, professional, reads well with overlays.
+export const LIGHT_BASEMAP = {
+  url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  attribution: "© OpenStreetMap, © CARTO",
 };
+
+// Kept for backwards compatibility; default is now the light basemap.
+export const DARK_BASEMAP = LIGHT_BASEMAP;
 
 export const COPILOT_EXAMPLES = [
   "How will flood risk in Satara change under SSP585 by 2050?",

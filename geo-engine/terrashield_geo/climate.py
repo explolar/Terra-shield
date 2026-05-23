@@ -129,39 +129,42 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     meta = VARIABLES[variable]
     h0, h1 = HORIZONS[horizon]
 
-    coll = ee.ImageCollection("NASA/GDDP-CMIP6")
-    if model != "ensemble":
-        coll = coll.filter(ee.Filter.eq("model", model))
+    # NASA/GDDP-CMIP6 is daily across ~35 models; a 20-year ensemble mean times out
+    # a synchronous request. Use a single representative model and 10-year windows
+    # (baseline tail vs. the horizon decade) with tileScale to keep it responsive.
+    rep_model = "ACCESS-CM2" if model == "ensemble" else model
+    base0, base1 = 2005, 2014  # representative recent-baseline decade
+    coll = ee.ImageCollection("NASA/GDDP-CMIP6").filter(ee.Filter.eq("model", rep_model))
 
     def period_mean(scen, y0, y1):
-        c = (
+        img = (
             coll.filter(ee.Filter.eq("scenario", scen))
             .filter(ee.Filter.calendarRange(y0, y1, "year"))
             .select(variable)
+            .mean()
+            .clip(geom)
         )
-        img = c.mean().clip(geom)
         if variable == "pr":
             img = img.multiply(86400 * 365)  # kg/m²/s -> mm/yr
         else:
             img = img.subtract(273.15)  # K -> °C
-        return img
+        return img.rename(variable)
 
-    base_img = period_mean("historical", BASELINE[0], BASELINE[1])
+    base_img = period_mean("historical", base0, base1)
     proj_img = period_mean(scenario, h0, h1)
     delta_img = proj_img.subtract(base_img).rename("delta")
 
-    def region_mean(img, band):
-        return ee.Number(
-            img.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=25000,
-                             maxPixels=1e9, bestEffort=True).get(band)
-        ).getInfo()
+    def region_mean(img):
+        v = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=27830,
+                             maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        return ee.Number(ee.Algorithms.If(v, v, 0)).getInfo()
 
-    baseline_val = region_mean(base_img, variable)
-    projected_val = region_mean(proj_img, variable)
+    baseline_val = region_mean(base_img)
+    projected_val = region_mean(proj_img)
     delta = projected_val - baseline_val
 
-    vis = {"min": -abs(delta) * 2 or -1, "max": abs(delta) * 2 or 1,
-           "palette": tiles.RAMPS[meta["ramp"]]}
+    span = abs(delta) * 2 or 1
+    vis = {"min": -span, "max": span, "palette": tiles.RAMPS[meta["ramp"]]}
     tile_url = tiles.image_tile_url(delta_img, vis)
 
     return {
@@ -173,11 +176,12 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
         "variable_label": meta["label"],
         "unit": meta["unit"],
         "horizon": horizon,
-        "model": model,
+        "model": rep_model + (" (representative)" if model == "ensemble" else ""),
         "baseline": round(baseline_val, 2),
         "projected": round(projected_val, 2),
         "delta": round(delta, 2),
         "pct_change": round(delta / max(abs(baseline_val), 1e-6) * 100, 1),
+        "baseline_period": f"{base0}-{base1}",
         "timeseries": [],  # served separately on the live path
         "tile_url": tile_url,
         "grid": None,

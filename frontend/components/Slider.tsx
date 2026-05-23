@@ -19,8 +19,8 @@ export function Slider({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs capitalize text-slate-400">{label}</span>
-        <span className="text-xs font-medium tabular-nums text-slate-300">
+        <span className="text-xs capitalize text-ink-muted">{label}</span>
+        <span className="text-xs font-semibold tabular-nums text-ink">
           {value.toFixed(2)}
         </span>
       </div>
@@ -33,7 +33,7 @@ export function Slider({
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="ts-range w-full"
         style={{
-          background: `linear-gradient(90deg, #22d3ee ${pct}%, #1e293b ${pct}%)`,
+          background: `linear-gradient(90deg, #06b6d4 ${pct}%, #e2e8f0 ${pct}%)`,
         }}
       />
     </div>

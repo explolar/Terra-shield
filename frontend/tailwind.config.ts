@@ -9,33 +9,47 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        space: {
-          950: "#070b18",
-          900: "#0b1120",
-          850: "#0d1526",
-          800: "#0f172a",
+        // Light surface scale (white → very light slate).
+        surface: {
+          DEFAULT: "#ffffff",
+          subtle: "#f8fafc", // slate-50
+          muted: "#f1f5f9", // slate-100
+          sunken: "#e2e8f0", // slate-200
         },
         line: {
-          DEFAULT: "#1e293b",
-          soft: "#1b2638",
+          DEFAULT: "#e2e8f0", // slate-200 — primary border
+          soft: "#cbd5e1", // slate-300 — stronger border
+        },
+        ink: {
+          DEFAULT: "#0f172a", // slate-900 — primary text
+          muted: "#475569", // slate-600 — secondary text
+          subtle: "#64748b", // slate-500 — tertiary text
+          faint: "#94a3b8", // slate-400 — placeholder
         },
         brand: {
           emerald: "#10b981",
-          cyan: "#22d3ee",
+          // slightly deeper cyan for AA contrast on white surfaces
+          cyan: "#06b6d4",
+          "cyan-light": "#22d3ee",
         },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(34,211,238,0.18), 0 12px 40px -12px rgba(16,185,129,0.45)",
-        panel: "0 8px 30px -12px rgba(0,0,0,0.6)",
-        card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 12px 30px -16px rgba(0,0,0,0.7)",
+        // Soft, subtle elevation tuned for a white theme.
+        xs: "0 1px 2px 0 rgba(15,23,42,0.05)",
+        card: "0 1px 3px 0 rgba(15,23,42,0.06), 0 1px 2px -1px rgba(15,23,42,0.06)",
+        panel:
+          "0 4px 12px -2px rgba(15,23,42,0.08), 0 2px 6px -2px rgba(15,23,42,0.06)",
+        float:
+          "0 12px 32px -8px rgba(15,23,42,0.16), 0 4px 12px -4px rgba(15,23,42,0.08)",
+        glow: "0 8px 24px -8px rgba(16,185,129,0.45)",
       },
       backgroundImage: {
-        "brand-gradient": "linear-gradient(135deg, #10b981 0%, #22d3ee 100%)",
+        "brand-gradient": "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
         "radial-glow":
-          "radial-gradient(60% 60% at 50% 0%, rgba(34,211,238,0.10) 0%, rgba(16,185,129,0.05) 35%, transparent 70%)",
+          "radial-gradient(60% 55% at 50% 0%, rgba(6,182,212,0.10) 0%, rgba(16,185,129,0.06) 38%, transparent 72%)",
       },
       keyframes: {
         "fade-up": {
@@ -46,8 +60,8 @@ const config: Config = {
           "100%": { transform: "translateX(100%)" },
         },
         "pulse-ring": {
-          "0%": { boxShadow: "0 0 0 0 rgba(16,185,129,0.5)" },
-          "70%": { boxShadow: "0 0 0 8px rgba(16,185,129,0)" },
+          "0%": { boxShadow: "0 0 0 0 rgba(16,185,129,0.45)" },
+          "70%": { boxShadow: "0 0 0 6px rgba(16,185,129,0)" },
           "100%": { boxShadow: "0 0 0 0 rgba(16,185,129,0)" },
         },
       },

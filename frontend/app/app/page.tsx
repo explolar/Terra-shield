@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Layers } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Layers, SlidersHorizontal, X, ChevronUp } from "lucide-react";
 
 import { TopBar } from "@/components/TopBar";
 import { LeftRail } from "@/components/LeftRail";
@@ -49,7 +50,7 @@ import {
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-space-950 text-sm text-slate-600">
+    <div className="flex h-full w-full items-center justify-center bg-surface-muted text-sm text-ink-subtle">
       Loading map…
     </div>
   ),
@@ -78,6 +79,9 @@ export default function Dashboard() {
 
   // --- active module ---
   const [moduleId, setModuleId] = useState<ModuleId>("flood");
+
+  // --- mobile bottom-sheet (controls / results) ---
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // --- per-module control state ---
   const [flood, setFlood] = useState<FloodControlState>({
@@ -152,7 +156,9 @@ export default function Dashboard() {
       setLayer(res);
     } catch (e: any) {
       setError(
-        e?.detail || e?.message || "Analysis failed. Check the backend is running.",
+        e?.detail ||
+          e?.message ||
+          "Analysis failed. Check the backend is running.",
       );
       setLayer(null);
     } finally {
@@ -204,6 +210,8 @@ export default function Dashboard() {
 
   function switchModule(id: ModuleId) {
     setModuleId(id);
+    // On mobile, surface the panel when a module is selected.
+    setSheetOpen(true);
     // clear non-copilot layer when switching to keep the map honest
     if (id !== moduleId) {
       setLayer(null);
@@ -214,15 +222,43 @@ export default function Dashboard() {
 
   const meta = moduleMeta(moduleId);
 
+  // The panel content is shared between the desktop aside and the mobile sheet.
+  const panelContent =
+    moduleId === "copilot" ? (
+      <CopilotPanel aoi={aoi} onLayer={(l) => setLayer(l)} />
+    ) : moduleId === "resilience" ? (
+      <ResiliencePanel aoi={aoi} onShelters={setShelters} onRoute={setRoute} />
+    ) : (
+      <RightPanel
+        moduleId={moduleId}
+        loading={loading}
+        error={error}
+        layer={layer}
+        flood={flood}
+        setFlood={setFlood}
+        climate={climate}
+        setClimate={setClimate}
+        drought={drought}
+        setDrought={setDrought}
+        infra={infra}
+        setInfra={setInfra}
+        onRun={runAnalysis}
+      />
+    );
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-space-950">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-white">
       <TopBar status={status} statusLoading={statusLoading} />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        {/* Module navigation: vertical rail (desktop) + bottom nav (mobile) */}
         <LeftRail active={moduleId} onSelect={switchModule} />
 
         {/* map */}
         <div className="relative min-w-0 flex-1">
+          {/* thin top loading bar while a request is in flight */}
+          {loading && <div className="top-loader" />}
+
           <AoiBar
             activeId={activeLocId}
             drawMode={drawMode}
@@ -241,60 +277,91 @@ export default function Dashboard() {
             shelters={shelters}
             route={route}
             onSelectState={selectStateFromMap}
+            invalidateKey={`${sheetOpen}-${moduleId}`}
           />
 
           {/* floating active-layer badge */}
           {layer && (
-            <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex items-center gap-2.5 rounded-xl border border-line bg-space-900/85 px-3.5 py-2.5 shadow-panel backdrop-blur-xl">
+            <div className="pointer-events-none absolute bottom-20 left-3 z-[1000] flex max-w-[calc(100%-1.5rem)] items-center gap-2.5 rounded-xl border border-line bg-white/90 px-3 py-2 shadow-panel backdrop-blur-xl sm:bottom-4 sm:left-4 sm:px-3.5 sm:py-2.5 lg:bottom-4">
               <span
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-lg bg-space-850 ${meta.accent}`}
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-subtle ${meta.accent}`}
               >
                 <Layers size={14} />
               </span>
-              <div>
-                <div className="text-xs font-semibold capitalize text-white">
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold capitalize text-ink">
                   {layer.module} · {layer.product.replace(/_/g, " ")}
                 </div>
-                <div className="text-[10px] text-slate-500">
+                <div className="truncate text-[10px] text-ink-subtle">
                   bbox {bbox.map((b) => b.toFixed(2)).join(", ")}
                 </div>
               </div>
-              <div className="ml-1">
+              <div className="ml-1 shrink-0">
                 <SourceBadge source={layer.source} />
               </div>
             </div>
           )}
+
+          {/* Mobile: floating button to open the controls / results sheet */}
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="btn-primary fixed bottom-[76px] right-4 z-[1100] !min-h-[48px] rounded-full px-5 shadow-float lg:hidden"
+            aria-label="Open controls and results"
+          >
+            <SlidersHorizontal size={16} />
+            <span>{meta.short}</span>
+            <ChevronUp size={16} />
+          </button>
         </div>
 
-        {/* right panel */}
-        <aside className="z-20 flex w-[360px] shrink-0 flex-col border-l border-line bg-space-900/95 backdrop-blur-xl">
-          {moduleId === "copilot" ? (
-            <CopilotPanel aoi={aoi} onLayer={(l) => setLayer(l)} />
-          ) : moduleId === "resilience" ? (
-            <ResiliencePanel
-              aoi={aoi}
-              onShelters={setShelters}
-              onRoute={setRoute}
-            />
-          ) : (
-            <RightPanel
-              moduleId={moduleId}
-              loading={loading}
-              error={error}
-              layer={layer}
-              flood={flood}
-              setFlood={setFlood}
-              climate={climate}
-              setClimate={setClimate}
-              drought={drought}
-              setDrought={setDrought}
-              infra={infra}
-              setInfra={setInfra}
-              onRun={runAnalysis}
-            />
-          )}
+        {/* right panel — desktop only */}
+        <aside className="z-20 hidden w-[360px] shrink-0 flex-col border-l border-line bg-white lg:flex">
+          {panelContent}
         </aside>
       </div>
+
+      {/* ---- Mobile bottom sheet ---- */}
+      <AnimatePresence>
+        {sheetOpen && (
+          <>
+            <motion.div
+              key="sheet-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setSheetOpen(false)}
+              className="fixed inset-0 z-[1200] bg-slate-900/30 backdrop-blur-[2px] lg:hidden"
+            />
+            <motion.div
+              key="sheet"
+              role="dialog"
+              aria-modal="true"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 320 }}
+              className="pb-safe fixed inset-x-0 bottom-0 z-[1300] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-white shadow-float lg:hidden"
+            >
+              {/* grab handle + close (the panel renders its own titled header below) */}
+              <div className="relative flex items-center justify-center py-2">
+                <span
+                  className="h-1.5 w-10 rounded-full bg-surface-sunken"
+                  aria-hidden
+                />
+                <button
+                  onClick={() => setSheetOpen(false)}
+                  aria-label="Close panel"
+                  className="absolute right-2 top-1 inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted transition hover:bg-surface-subtle hover:text-ink"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">{panelContent}</div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

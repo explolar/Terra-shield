@@ -119,7 +119,7 @@ export function FloodControls({
                 onClick={() =>
                   setState({ ...state, weights: { ...DEFAULT_WEIGHTS } })
                 }
-                className="inline-flex items-center gap-1 text-[11px] text-slate-500 transition hover:text-brand-cyan"
+                className="inline-flex items-center gap-1 text-[11px] text-ink-subtle transition hover:text-brand-cyan"
               >
                 <RotateCcw size={11} /> Reset
               </button>
@@ -153,14 +153,14 @@ export function FloodControls({
       )}
 
       {state.product === "sar" && (
-        <p className="rounded-xl border border-line bg-space-850 p-3 text-xs leading-relaxed text-slate-400">
+        <p className="note-box text-xs leading-relaxed">
           Sentinel-1 SAR open-water detection compares pre- and post-event
           backscatter to map inundation extent.
         </p>
       )}
 
       {state.product === "road" && (
-        <p className="rounded-xl border border-line bg-space-850 p-3 text-xs leading-relaxed text-slate-400">
+        <p className="note-box text-xs leading-relaxed">
           Flags road segments crossing high-susceptibility cells as likely
           impassable. Red = disrupted, blue = passable.
         </p>
@@ -220,7 +220,7 @@ export function ClimateControls({
           ]}
         />
       </div>
-      <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+      <p className="note-box text-[11px] leading-relaxed">
         NASA NEX-GDDP-CMIP6 ensemble, 0.25° downscaled, baseline 1995–2014.
       </p>
       <RunButton loading={loading} onClick={onRun} label="Run projection" />
@@ -268,7 +268,7 @@ export function DroughtControls({
           />
         </div>
       )}
-      <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+      <p className="note-box text-[11px] leading-relaxed">
         {state.product === "spi"
           ? "Standardized Precipitation Index from CHIRPS (McKee et al., 1993). Negative = drier than normal."
           : "NDVI-based Vegetation Condition Index from MODIS. Low values = crop / vegetation stress."}
@@ -303,7 +303,7 @@ export function InfraControls({
           ]}
         />
       </div>
-      <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+      <p className="note-box text-[11px] leading-relaxed">
         Overlays the hazard footprint on WorldPop population and ESA WorldCover
         built-up land to quantify exposure.
       </p>
@@ -369,7 +369,7 @@ export function ResilienceControls({
               step={0.5}
             />
           </div>
-          <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+          <p className="note-box text-[11px] leading-relaxed">
             Maximal Covering Location Problem — place k shelters to cover the most
             demand within the radius.
           </p>
@@ -383,7 +383,7 @@ export function ResilienceControls({
 
       {state.tool === "evacuation" && (
         <>
-          <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+          <p className="note-box text-[11px] leading-relaxed">
             Computes the shortest-path evacuation corridor across the road
             network from an at-risk source to safe ground, flagging segments that
             cross flood-prone terrain.
@@ -411,10 +411,10 @@ export function ResilienceControls({
                   budget: Math.max(0, parseFloat(e.target.value) || 0),
                 })
               }
-              className="w-full rounded-xl border border-line bg-space-850 px-3 py-2 text-sm text-white tabular-nums transition-colors focus:border-brand-cyan/50 focus:outline-none"
+              className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink tabular-nums shadow-xs transition-colors focus:border-brand-cyan/60 focus:outline-none focus:ring-2 focus:ring-brand-cyan/30"
             />
           </div>
-          <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+          <p className="note-box text-[11px] leading-relaxed">
             Select the set of interventions that maximizes total risk reduction
             without exceeding the budget.
           </p>
@@ -427,7 +427,7 @@ export function ResilienceControls({
       )}
 
       {state.tool === "ahp" && (
-        <p className="rounded-xl border border-line bg-space-850 p-3 text-[11px] leading-relaxed text-slate-500">
+        <p className="note-box text-[11px] leading-relaxed">
           The Analytic Hierarchy Process derives defensible weights for the six
           flood-susceptibility factors from a pairwise-comparison matrix, with a
           consistency check. The default weights are shown in the results panel.

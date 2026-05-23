@@ -20,28 +20,28 @@ function ReliabilityCard({ layer }: { layer: LayerResponse }) {
   const r = layer.reliability;
   if (!r) return null;
   return (
-    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3.5">
+    <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3.5">
       <div className="mb-2 flex items-center gap-2">
-        <ShieldCheck size={15} className="text-emerald-300" />
-        <span className="text-xs font-semibold text-emerald-200">
+        <ShieldCheck size={15} className="text-emerald-600" />
+        <span className="text-xs font-semibold text-emerald-700">
           Reliability
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <div className="text-slate-500">Applicable area</div>
-          <div className="mt-0.5 font-semibold text-white">
+          <div className="text-ink-subtle">Applicable area</div>
+          <div className="mt-0.5 font-semibold text-ink">
             {r.applicable_pct}%
           </div>
         </div>
         <div>
-          <div className="text-slate-500">Mean confidence</div>
-          <div className="mt-0.5 font-semibold text-white">
+          <div className="text-ink-subtle">Mean confidence</div>
+          <div className="mt-0.5 font-semibold text-ink">
             {r.mean_confidence}
           </div>
         </div>
       </div>
-      <p className="mt-2.5 text-[11px] leading-relaxed text-slate-500">
+      <p className="mt-2.5 text-[11px] leading-relaxed text-ink-muted">
         {r.method}. Validated via {r.validation}.
       </p>
     </div>
@@ -96,14 +96,14 @@ export function ResultPanel({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white">Results</span>
+        <span className="text-sm font-semibold text-ink">Results</span>
         <SourceBadge source={layer.source} />
       </div>
 
       {/* climate headline */}
       {moduleId === "climate" && typeof layer.delta === "number" && (
-        <div className="rounded-xl border border-line bg-space-850 p-4">
-          <div className="text-xs text-slate-500">
+        <div className="rounded-xl border border-line bg-surface-subtle p-4">
+          <div className="text-xs text-ink-subtle">
             {layer.variable_label} · {layer.scenario?.toUpperCase()} ·{" "}
             {layer.horizon}
           </div>
@@ -112,17 +112,17 @@ export function ResultPanel({
               {layer.delta > 0 ? "+" : ""}
               {layer.delta}
             </span>
-            <span className="text-sm text-slate-400">{layer.unit}</span>
+            <span className="text-sm text-ink-muted">{layer.unit}</span>
             <span
               className={`ml-auto text-sm font-semibold ${
-                (layer.pct_change ?? 0) >= 0 ? "text-rose-300" : "text-cyan-300"
+                (layer.pct_change ?? 0) >= 0 ? "text-rose-600" : "text-cyan-600"
               }`}
             >
               {(layer.pct_change ?? 0) >= 0 ? "+" : ""}
               {layer.pct_change}%
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500">
+          <div className="mt-1 text-xs text-ink-subtle">
             {layer.baseline} → {layer.projected} {layer.unit} vs baseline
           </div>
         </div>
@@ -133,7 +133,7 @@ export function ResultPanel({
       {moduleId === "flood" && <ReliabilityCard layer={layer} />}
 
       {hasChart && (
-        <div className="rounded-xl border border-line bg-space-850 p-3.5">
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
           <SectionLabel>
             <span className="inline-flex items-center gap-1.5">
               <BarChart3 size={12} /> {ct}
@@ -149,7 +149,7 @@ export function ResultPanel({
           {isRamp ? (
             <div className="space-y-2">
               <LegendBar legend={layer.legend} />
-              <div className="flex justify-between text-[10px] text-slate-500">
+              <div className="flex justify-between text-[10px] text-ink-subtle">
                 {layer.legend
                   .filter((l) => l.label && l.label.trim())
                   .map((l) => (
@@ -163,7 +163,7 @@ export function ResultPanel({
         </div>
       )}
 
-      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-600">
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
         {layer.source === "demo"
           ? "Deterministic demo surface (no Earth Engine credentials configured). The same AOI always returns the same result."

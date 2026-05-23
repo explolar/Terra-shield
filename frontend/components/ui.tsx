@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Inbox, type LucideIcon } from "lucide-react";
 import type { LegendItem, Source } from "@/lib/types";
 
 export function SourceBadge({ source }: { source: Source }) {
@@ -10,13 +10,13 @@ export function SourceBadge({ source }: { source: Source }) {
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
         live
-          ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-          : "border border-amber-500/40 bg-amber-500/10 text-amber-300"
+          ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
+          : "border border-amber-500/40 bg-amber-500/10 text-amber-700"
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          live ? "animate-pulse-ring bg-emerald-400" : "bg-amber-400"
+          live ? "animate-pulse-ring bg-emerald-500" : "bg-amber-500"
         }`}
       />
       {live ? "Live data" : "Demo data"}
@@ -26,7 +26,7 @@ export function SourceBadge({ source }: { source: Source }) {
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-400">
+    <div className="flex items-center justify-center gap-2 py-8 text-sm text-ink-subtle">
       <Loader2 size={16} className="animate-spin text-brand-cyan" />
       {label ?? "Computing…"}
     </div>
@@ -35,15 +35,57 @@ export function Spinner({ label }: { label?: string }) {
 
 export function ErrorNote({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-sm text-rose-200">
+    <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
       {message}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title = "Nothing to show yet",
+  message,
+  icon: Icon = Inbox,
+}: {
+  title?: string;
+  message: string;
+  icon?: LucideIcon;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-surface-subtle px-4 py-8 text-center">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-ink-faint">
+        <Icon size={18} />
+      </span>
+      <div className="text-sm font-semibold text-ink">{title}</div>
+      <p className="max-w-[14rem] text-xs leading-relaxed text-ink-subtle">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+// Reusable skeleton block for loading states.
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`skeleton ${className}`} />;
+}
+
+export function ResultSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-5 w-28" />
+      <div className="grid grid-cols-2 gap-2.5">
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+      <Skeleton className="h-32 w-full" />
     </div>
   );
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
       {children}
     </h4>
   );
@@ -130,15 +172,16 @@ export function StatGrid({ stats }: { stats: Record<string, any> }) {
   return (
     <div className="grid grid-cols-2 gap-2.5">
       {entries.map(([key, value]) => {
-        const primary = PRIMARY_KEYS.indexOf(key) >= 0 && PRIMARY_KEYS.indexOf(key) < 3;
+        const primary =
+          PRIMARY_KEYS.indexOf(key) >= 0 && PRIMARY_KEYS.indexOf(key) < 3;
         return (
           <div key={key} className="stat-card">
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-ink-subtle">
               {STAT_LABELS[key] ?? key.replace(/_/g, " ")}
             </div>
             <div
               className={`mt-1 font-semibold ${
-                primary ? "gradient-text text-lg" : "text-base text-white"
+                primary ? "gradient-text text-lg" : "text-base text-ink"
               }`}
             >
               {formatStat(key, value)}
@@ -158,10 +201,10 @@ export function Legend({ legend }: { legend: LegendItem[] }) {
       {items.map((l, i) => (
         <div key={`${l.label}-${i}`} className="flex items-center gap-2.5">
           <span
-            className="h-3 w-3 shrink-0 rounded-sm ring-1 ring-white/10"
+            className="h-3 w-3 shrink-0 rounded-sm ring-1 ring-slate-900/10"
             style={{ backgroundColor: l.color }}
           />
-          <span className="text-xs text-slate-300">{l.label}</span>
+          <span className="text-xs text-ink-muted">{l.label}</span>
         </div>
       ))}
     </div>
@@ -174,7 +217,7 @@ export function LegendBar({ legend }: { legend: LegendItem[] }) {
   if (colors.length < 2) return null;
   return (
     <div
-      className="h-2.5 w-full rounded-full ring-1 ring-white/10"
+      className="h-2.5 w-full rounded-full ring-1 ring-slate-900/10"
       style={{
         background: `linear-gradient(90deg, ${colors.join(", ")})`,
       }}
@@ -192,15 +235,15 @@ export function Toggle<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex rounded-xl border border-line bg-space-850 p-1">
+    <div className="flex rounded-xl border border-line bg-surface-muted p-1">
       {options.map((opt) => (
         <button
           key={String(opt.value)}
           onClick={() => onChange(opt.value)}
-          className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-all duration-200 ${
+          className={`flex-1 rounded-lg px-2 py-2 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/40 ${
             value === opt.value
-              ? "bg-brand-gradient text-space-950 shadow"
-              : "text-slate-400 hover:text-white"
+              ? "bg-white text-ink shadow-card"
+              : "text-ink-subtle hover:text-ink"
           }`}
         >
           {opt.label}

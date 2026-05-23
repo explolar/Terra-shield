@@ -30,7 +30,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Multi-criteria flood intelligence",
     description:
       "AHP-weighted susceptibility, Sentinel-1 SAR inundation extent and road-access disruption — with reliability scoring.",
-    accent: "text-cyan-300",
+    accent: "text-cyan-600",
     gradient: "from-cyan-500/20 to-blue-500/10",
   },
   {
@@ -41,7 +41,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "CMIP6 / SSP future projections",
     description:
       "Downscaled NEX-GDDP-CMIP6 projections of rainfall and temperature under SSP2-4.5 and SSP5-8.5 to the 2080s.",
-    accent: "text-rose-300",
+    accent: "text-rose-600",
     gradient: "from-rose-500/20 to-orange-500/10",
   },
   {
@@ -52,7 +52,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Meteorological & vegetation drought",
     description:
       "Standardized Precipitation Index from CHIRPS and NDVI-based Vegetation Condition Index for crop-stress monitoring.",
-    accent: "text-amber-300",
+    accent: "text-amber-600",
     gradient: "from-amber-500/20 to-yellow-500/10",
   },
   {
@@ -63,7 +63,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Population & asset exposure",
     description:
       "Overlay hazard footprints on WorldPop population and built-up land cover to quantify who and what is exposed.",
-    accent: "text-emerald-300",
+    accent: "text-emerald-600",
     gradient: "from-emerald-500/20 to-teal-500/10",
   },
   {
@@ -74,7 +74,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Operations research for disaster response",
     description:
       "Optimal shelter siting, shortest-path evacuation routing and budget-constrained mitigation planning — defensible, citable optimization.",
-    accent: "text-cyan-200",
+    accent: "text-cyan-700",
     gradient: "from-cyan-500/20 to-emerald-500/10",
   },
   {
@@ -85,7 +85,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Ask climate risk in plain English",
     description:
       "A grounded agent that routes natural-language questions to the right model and answers with real, cited numbers.",
-    accent: "text-violet-300",
+    accent: "text-violet-600",
     gradient: "from-violet-500/20 to-fuchsia-500/10",
   },
   {
@@ -96,7 +96,7 @@ export const MODULES: ModuleMeta[] = [
     tagline: "Petabyte-scale EO foundation",
     description:
       "A unified gateway to SRTM, Sentinel, CHIRPS, MODIS, WorldCover and WorldPop — live via Earth Engine or deterministic demo.",
-    accent: "text-sky-300",
+    accent: "text-sky-600",
     gradient: "from-sky-500/20 to-indigo-500/10",
   },
 ];

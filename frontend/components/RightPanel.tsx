@@ -13,7 +13,8 @@ import {
   type InfraControlState,
 } from "@/components/Controls";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Spinner, ErrorNote } from "@/components/ui";
+import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
+import { BarChart3 } from "lucide-react";
 import type { LayerResponse, ModuleId } from "@/lib/types";
 
 export interface RightPanelProps {
@@ -56,13 +57,13 @@ export function RightPanel(props: RightPanelProps) {
       {/* header */}
       <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
         <span
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-space-850 ${meta.accent}`}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-subtle ${meta.accent}`}
         >
           <meta.icon size={18} />
         </span>
         <div>
-          <div className="text-sm font-semibold text-white">{meta.name}</div>
-          <div className="text-[11px] text-slate-500">{meta.tagline}</div>
+          <div className="text-sm font-semibold text-ink">{meta.name}</div>
+          <div className="text-[11px] text-ink-subtle">{meta.tagline}</div>
         </div>
       </div>
 
@@ -106,7 +107,7 @@ export function RightPanel(props: RightPanelProps) {
         {/* results */}
         <div className="border-t border-line pt-5">
           {error && <ErrorNote message={error} />}
-          {!error && loading && !layer && <Spinner />}
+          {!error && loading && !layer && <ResultSkeleton />}
           {!error && layer && (
             <motion.div
               key={`${layer.module}-${layer.product}-${layer.source}`}
@@ -118,9 +119,11 @@ export function RightPanel(props: RightPanelProps) {
             </motion.div>
           )}
           {!error && !loading && !layer && (
-            <p className="text-center text-xs text-slate-600">
-              Configure the controls above and run an analysis to see results.
-            </p>
+            <EmptyState
+              icon={BarChart3}
+              title="No results yet"
+              message="Configure the controls above and run an analysis to see results."
+            />
           )}
         </div>
       </div>

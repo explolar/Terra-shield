@@ -27,7 +27,7 @@ import {
   valueToColor,
 } from "@/lib/colors";
 import {
-  DARK_BASEMAP,
+  LIGHT_BASEMAP,
   bboxToLeafletBounds,
 } from "@/lib/presets";
 
@@ -41,6 +41,9 @@ interface MapViewProps {
   route?: LineFeatureCollection | null;
   // optional: click a state polygon to select it as AOI
   onSelectState?: (name: string, bbox: [number, number, number, number]) => void;
+  // change this value to force the map to recompute its size (e.g. after a
+  // responsive panel / bottom-sheet opens or closes).
+  invalidateKey?: string | number;
 }
 
 // Imperatively fly the map when the AOI changes.
@@ -88,12 +91,24 @@ function DrawHandler({
   return null;
 }
 
-function ResizeFix() {
+function ResizeFix({ invalidateKey }: { invalidateKey?: string | number }) {
   const map = useMap();
+  // Initial mount + on window resize.
   useEffect(() => {
     const t = setTimeout(() => map.invalidateSize(), 200);
-    return () => clearTimeout(t);
+    const onResize = () => map.invalidateSize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", onResize);
+    };
   }, [map]);
+  // On layout changes driven by the parent (panel / sheet open-close).
+  useEffect(() => {
+    // Run after the CSS transition so the container has its final size.
+    const t = setTimeout(() => map.invalidateSize(), 320);
+    return () => clearTimeout(t);
+  }, [map, invalidateKey]);
   return null;
 }
 
@@ -118,27 +133,28 @@ function useStaticGeo(
   return data;
 }
 
+// Tuned for a light (Carto Positron) basemap — darker emerald national outline,
+// subtle slate state/district borders that still read on white.
 const OUTLINE_STYLE: PathOptions = {
-  color: "#34d399",
-  weight: 1.4,
-  opacity: 0.55,
+  color: "#059669",
+  weight: 1.6,
+  opacity: 0.7,
   fill: false,
-  // soft glow effect
   className: "india-outline-glow",
 };
 
 const STATES_STYLE: PathOptions = {
-  color: "#22d3ee",
-  weight: 0.5,
-  opacity: 0.16,
+  color: "#64748b",
+  weight: 0.6,
+  opacity: 0.35,
   fill: false,
   interactive: false,
 };
 
 const DISTRICTS_STYLE: PathOptions = {
-  color: "#64748b",
+  color: "#94a3b8",
   weight: 0.4,
-  opacity: 0.14,
+  opacity: 0.3,
   fill: false,
   interactive: false,
 };
@@ -194,17 +210,19 @@ function IndiaBoundaries({
       },
       mouseover() {
         (leafletLayer as any).setStyle?.({
-          fillColor: "#22d3ee",
-          fillOpacity: 0.08,
-          weight: 1,
-          opacity: 0.5,
+          fillColor: "#06b6d4",
+          fillOpacity: 0.12,
+          color: "#0891b2",
+          weight: 1.2,
+          opacity: 0.7,
         });
       },
       mouseout() {
         (leafletLayer as any).setStyle?.({
           fillOpacity: 0,
-          weight: 0.5,
-          opacity: 0.16,
+          color: "#64748b",
+          weight: 0.6,
+          opacity: 0.35,
         });
       },
     });
@@ -251,6 +269,7 @@ export default function MapView({
   shelters,
   route,
   onSelectState,
+  invalidateKey,
 }: MapViewProps) {
   const aoiBounds = bboxToLeafletBounds(bbox);
   const [zoom, setZoom] = useState(9);
@@ -363,11 +382,11 @@ export default function MapView({
       className="h-full w-full"
       style={{ cursor: drawMode ? "crosshair" : "" }}
     >
-      <ResizeFix />
+      <ResizeFix invalidateKey={invalidateKey} />
       <ZoomWatcher onZoom={setZoom} />
       <TileLayer
-        url={DARK_BASEMAP.url}
-        attribution={DARK_BASEMAP.attribution}
+        url={LIGHT_BASEMAP.url}
+        attribution={LIGHT_BASEMAP.attribution}
         subdomains={["a", "b", "c", "d"]}
       />
 
@@ -430,9 +449,10 @@ export default function MapView({
       <Rectangle
         bounds={aoiBounds}
         pathOptions={{
-          color: "#22d3ee",
-          weight: 1.5,
-          fillOpacity: 0,
+          color: "#0891b2",
+          weight: 2,
+          fillColor: "#06b6d4",
+          fillOpacity: 0.04,
           dashArray: "6 6",
         }}
       />

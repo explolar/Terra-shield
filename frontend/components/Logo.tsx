@@ -57,13 +57,13 @@ export function Wordmark({ size = 32 }: { size?: number }) {
     <div className="flex items-center gap-2.5 select-none">
       <LogoMark size={size} />
       <div className="leading-none">
-        <span className="text-[17px] font-bold tracking-tight text-white">
+        <span className="text-[17px] font-bold tracking-tight text-ink">
           Terra
         </span>
         <span className="text-[17px] font-bold tracking-tight gradient-text">
           Shield
         </span>
-        <span className="ml-1.5 align-top text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-cyan/70">
+        <span className="ml-1.5 align-top text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-cyan">
           AI
         </span>
       </div>

@@ -101,10 +101,12 @@ export function productValueConfig(product: string): {
 // Brand palette tokens (kept in one place for reuse in non-Tailwind contexts).
 export const BRAND = {
   emerald: "#10b981",
-  cyan: "#22d3ee",
-  navy: "#0b1120",
-  panel: "#0f172a",
-  border: "#1e293b",
+  cyan: "#06b6d4",
+  surface: "#ffffff",
+  surfaceSubtle: "#f8fafc",
+  border: "#e2e8f0",
+  ink: "#0f172a",
+  inkMuted: "#475569",
 };
 
 // Hazard ramp used in legends (greens -> yellows -> reds).

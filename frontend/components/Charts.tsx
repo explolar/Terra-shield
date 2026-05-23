@@ -17,14 +17,14 @@ import type { LayerResponse } from "@/lib/types";
 import { HAZARD_RAMP, rampColor } from "@/lib/colors";
 
 const axisStyle = { fill: "#64748b", fontSize: 11 };
-const gridStroke = "#1e293b";
+const gridStroke = "#e2e8f0";
 
 function ChartTooltip({ active, payload, label, unit }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-line bg-space-900/95 px-3 py-2 text-xs shadow-panel backdrop-blur">
-      <div className="font-semibold text-white">{label}</div>
-      <div className="text-slate-300">
+    <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+      <div className="font-semibold text-ink">{label}</div>
+      <div className="text-ink-muted">
         {payload[0].value}
         {unit ? ` ${unit}` : ""}
       </div>
@@ -36,7 +36,7 @@ export function ClimateTimeseries({ layer }: { layer: LayerResponse }) {
   const data = layer.timeseries ?? [];
   if (!data.length) {
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-subtle">
         Time series available on the demo path; live projections return the map
         delta only.
       </p>
@@ -72,7 +72,7 @@ export function ClimateTimeseries({ layer }: { layer: LayerResponse }) {
           {typeof layer.baseline === "number" && (
             <ReferenceLine
               y={layer.baseline}
-              stroke="#475569"
+              stroke="#94a3b8"
               strokeDasharray="4 4"
               label={{ value: "baseline", fill: "#64748b", fontSize: 10, position: "insideTopLeft" }}
             />
@@ -95,7 +95,7 @@ export function FloodClassChart({ layer }: { layer: LayerResponse }) {
   const classPct = layer.stats?.class_pct as Record<string, number> | undefined;
   if (!classPct) {
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-subtle">
         Class distribution available on the demo path.
       </p>
     );
@@ -126,14 +126,16 @@ export function FloodClassChart({ layer }: { layer: LayerResponse }) {
             unit="%"
           />
           <Tooltip
-            cursor={{ fill: "rgba(148,163,184,0.06)" }}
+            cursor={{ fill: "rgba(148,163,184,0.12)" }}
             content={({ active, payload }: any) =>
               active && payload?.length ? (
-                <div className="rounded-lg border border-line bg-space-900/95 px-3 py-2 text-xs shadow-panel">
-                  <div className="font-semibold text-white">
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">
                     {payload[0].payload.full}
                   </div>
-                  <div className="text-slate-300">{payload[0].value}% of area</div>
+                  <div className="text-ink-muted">
+                    {payload[0].value}% of area
+                  </div>
                 </div>
               ) : null
             }
@@ -160,21 +162,21 @@ export function SpiGauge({ layer }: { layer: LayerResponse }) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-xs text-slate-500">SPI scale</span>
+        <span className="text-xs text-ink-subtle">SPI scale</span>
         <span className="gradient-text text-2xl font-bold">{spi.toFixed(2)}</span>
       </div>
-      <div className="relative h-3 w-full rounded-full ring-1 ring-white/10"
+      <div className="relative h-3 w-full rounded-full ring-1 ring-slate-900/10"
         style={{
           background:
-            "linear-gradient(90deg,#730000,#e60000,#ffaa00,#fcd37f,#ffffff,#a6d96a,#1a9641)",
+            "linear-gradient(90deg,#730000,#e60000,#ffaa00,#fcd37f,#f1f5f9,#a6d96a,#1a9641)",
         }}
       >
         <div
-          className="absolute top-1/2 h-5 w-1.5 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+          className="absolute top-1/2 h-5 w-1.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-slate-300 bg-white shadow-[0_1px_4px_rgba(15,23,42,0.4)]"
           style={{ left: `${clamped}%` }}
         />
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-600">
+      <div className="mt-1 flex justify-between text-[10px] text-ink-subtle">
         <span>-2.5 dry</span>
         <span>0</span>
         <span>+2.5 wet</span>
@@ -197,12 +199,12 @@ export function PercentMeter({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-xs text-slate-500">{label}</span>
-        <span className="text-lg font-semibold text-white">
+        <span className="text-xs text-ink-subtle">{label}</span>
+        <span className="text-lg font-semibold text-ink">
           {value.toFixed(2)}
         </span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-space-850 ring-1 ring-white/5">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface-muted ring-1 ring-slate-900/5">
         <div
           className="h-full rounded-full transition-all"
           style={{ width: `${pct}%`, backgroundColor: color }}

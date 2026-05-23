@@ -48,55 +48,58 @@ const PIPELINE = [
 
 export default function LandingPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-space-950">
+    <main className="relative min-h-screen overflow-x-hidden bg-surface-subtle">
       {/* ambient background */}
       <div className="pointer-events-none absolute inset-0 bg-radial-glow" />
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-brand-emerald/10 blur-[140px]" />
-      <div className="pointer-events-none absolute top-1/3 right-0 h-[420px] w-[420px] rounded-full bg-brand-cyan/10 blur-[130px]" />
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[680px] -translate-x-1/2 rounded-full bg-brand-emerald/10 blur-[140px]" />
+      <div className="pointer-events-none absolute top-1/3 right-0 h-[360px] w-[360px] rounded-full bg-brand-cyan/10 blur-[130px]" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
+        className="pointer-events-none absolute inset-0 opacity-[0.5]"
         style={{
           backgroundImage:
-            "linear-gradient(#22d3ee 1px, transparent 1px), linear-gradient(90deg, #22d3ee 1px, transparent 1px)",
+            "linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px)",
           backgroundSize: "48px 48px",
           maskImage:
-            "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)",
+            "radial-gradient(ellipse 80% 55% at 50% 0%, black, transparent)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 55% at 50% 0%, black, transparent)",
         }}
       />
 
       {/* nav */}
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
         <Wordmark />
-        <nav className="hidden items-center gap-7 text-sm text-slate-400 md:flex">
-          <a href="#modules" className="transition hover:text-white">
+        <nav className="hidden items-center gap-7 text-sm text-ink-muted md:flex">
+          <a href="#modules" className="transition hover:text-ink">
             Modules
           </a>
-          <a href="#how" className="transition hover:text-white">
+          <a href="#how" className="transition hover:text-ink">
             How it works
           </a>
-          <a
-            href="#architecture"
-            className="transition hover:text-white"
-          >
+          <a href="#architecture" className="transition hover:text-ink">
             Architecture
           </a>
         </nav>
-        <Link href="/app" className="btn-primary">
-          Launch Platform
+        <Link href="/app" className="btn-primary px-4 sm:px-5">
+          <span className="hidden sm:inline">Launch Platform</span>
+          <span className="sm:hidden">Launch</span>
           <ArrowRight size={16} />
         </Link>
       </header>
 
       {/* hero */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-20 pt-16 text-center sm:pt-24">
+      <section className="relative z-10 mx-auto max-w-5xl px-4 pb-16 pt-12 text-center sm:px-6 sm:pt-20 lg:pt-24">
         <motion.div
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-space-800/60 px-4 py-1.5 text-xs font-medium text-slate-300 backdrop-blur"
+          className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-white/80 px-4 py-1.5 text-xs font-medium text-ink-muted shadow-xs backdrop-blur"
         >
           <Sparkles size={13} className="text-brand-cyan" />
-          Earth observation, climate models & AI — in one workspace
+          <span className="hidden sm:inline">
+            Earth observation, climate models &amp; AI — in one workspace
+          </span>
+          <span className="sm:hidden">EO · climate · AI, unified</span>
         </motion.div>
 
         <motion.h1
@@ -104,10 +107,10 @@ export default function LandingPage() {
           animate="show"
           custom={1}
           variants={fadeUp}
-          className="text-balance text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl"
+          className="text-balance text-3xl font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-6xl"
         >
           The AI Operating System for
-          <br />
+          <br className="hidden sm:block" />{" "}
           <span className="gradient-text">Climate Risk &amp; Resilience</span>
         </motion.h1>
 
@@ -116,7 +119,7 @@ export default function LandingPage() {
           animate="show"
           custom={2}
           variants={fadeUp}
-          className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-slate-400 sm:text-lg"
+          className="mx-auto mt-5 max-w-2xl text-pretty text-sm leading-relaxed text-ink-muted sm:mt-6 sm:text-base lg:text-lg"
         >
           TerraShield turns petabytes of satellite and climate data into
           decision-ready intelligence — flood, drought, climate and
@@ -128,13 +131,19 @@ export default function LandingPage() {
           animate="show"
           custom={3}
           variants={fadeUp}
-          className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
+          className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
-          <Link href="/app" className="btn-primary px-6 py-3 text-base">
+          <Link
+            href="/app"
+            className="btn-primary w-full px-6 py-3 text-base sm:w-auto"
+          >
             Launch Platform
             <ArrowRight size={18} />
           </Link>
-          <a href="#modules" className="btn-ghost px-6 py-3 text-base">
+          <a
+            href="#modules"
+            className="btn-ghost w-full px-6 py-3 text-base sm:w-auto"
+          >
             Explore modules
           </a>
         </motion.div>
@@ -145,7 +154,7 @@ export default function LandingPage() {
           animate="show"
           custom={4}
           variants={fadeUp}
-          className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4"
+          className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:mt-16 sm:grid-cols-4 sm:gap-4"
         >
           {[
             ["6", "Risk modules"],
@@ -154,21 +163,26 @@ export default function LandingPage() {
             ["< 5s", "Per analysis"],
           ].map(([n, l]) => (
             <div key={l} className="panel p-4">
-              <div className="gradient-text text-2xl font-bold">{n}</div>
-              <div className="mt-1 text-xs text-slate-500">{l}</div>
+              <div className="gradient-text text-xl font-bold sm:text-2xl">
+                {n}
+              </div>
+              <div className="mt-1 text-xs text-ink-subtle">{l}</div>
             </div>
           ))}
         </motion.div>
       </section>
 
       {/* modules */}
-      <section id="modules" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
+      <section
+        id="modules"
+        className="relative z-10 mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16"
+      >
         <SectionHeader
           eyebrow="Platform"
           title="Seven engines, one workspace"
           subtitle="Each module is a production-grade geospatial model that runs over your area of interest and returns mappable, cited results."
         />
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
           {MODULES.map((m, i) => (
             <motion.div
               key={m.id}
@@ -177,22 +191,22 @@ export default function LandingPage() {
               viewport={{ once: true, margin: "-60px" }}
               custom={i}
               variants={fadeUp}
-              className="group relative overflow-hidden rounded-2xl border border-line bg-space-800/70 p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-brand-cyan/30"
+              className="group relative overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-brand-cyan/40 hover:shadow-panel sm:p-6"
             >
               <div
                 className={`pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br ${m.gradient} opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100`}
               />
               <div className="relative">
                 <div
-                  className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-line bg-space-850 ${m.accent} transition-transform duration-300 group-hover:scale-110`}
+                  className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-line bg-surface-subtle ${m.accent} transition-transform duration-300 group-hover:scale-110`}
                 >
                   <m.icon size={22} />
                 </div>
-                <h3 className="text-lg font-semibold text-white">{m.name}</h3>
-                <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-brand-cyan/70">
+                <h3 className="text-lg font-semibold text-ink">{m.name}</h3>
+                <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-brand-cyan">
                   {m.tagline}
                 </p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                <p className="mt-3 text-sm leading-relaxed text-ink-muted">
                   {m.description}
                 </p>
               </div>
@@ -202,13 +216,16 @@ export default function LandingPage() {
       </section>
 
       {/* how it works */}
-      <section id="how" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
+      <section
+        id="how"
+        className="relative z-10 mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16"
+      >
         <SectionHeader
           eyebrow="How it works"
           title="From raw pixels to resilience decisions"
           subtitle="A single pipeline takes any area of interest from satellite data to an actionable, mappable answer."
         />
-        <div className="mt-12 grid gap-5 md:grid-cols-4">
+        <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
           {PIPELINE.map((step, i) => (
             <motion.div
               key={step.title}
@@ -217,16 +234,16 @@ export default function LandingPage() {
               viewport={{ once: true, margin: "-60px" }}
               custom={i}
               variants={fadeUp}
-              className="relative panel p-6"
+              className="panel relative p-5 sm:p-6"
             >
-              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-space-950">
+              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
                 <step.icon size={18} />
               </div>
-              <div className="absolute right-5 top-5 text-xs font-bold text-slate-700">
+              <div className="absolute right-5 top-5 text-xs font-bold text-slate-300">
                 0{i + 1}
               </div>
-              <h4 className="text-sm font-semibold text-white">{step.title}</h4>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+              <h4 className="text-sm font-semibold text-ink">{step.title}</h4>
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
                 {step.body}
               </p>
             </motion.div>
@@ -237,24 +254,24 @@ export default function LandingPage() {
       {/* architecture strip */}
       <section
         id="architecture"
-        className="relative z-10 mx-auto max-w-7xl px-6 py-16"
+        className="relative z-10 mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16"
       >
         <motion.div
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-60px" }}
           variants={fadeUp}
-          className="overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-space-800 to-space-900 p-8 sm:p-12"
+          className="overflow-hidden rounded-3xl border border-line bg-white p-6 shadow-panel sm:p-10 lg:p-12"
         >
-          <div className="grid items-center gap-10 lg:grid-cols-2">
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-10">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-cyan/70">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-cyan">
                 Architecture
               </p>
-              <h3 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
+              <h3 className="mt-3 text-2xl font-bold text-ink sm:text-3xl">
                 Built for production, not just a demo
               </h3>
-              <p className="mt-4 text-sm leading-relaxed text-slate-400">
+              <p className="mt-4 text-sm leading-relaxed text-ink-muted">
                 A typed Next.js frontend talks to a FastAPI compute backend
                 backed by a Google Earth Engine geo-engine. Every layer carries
                 its provenance, a live-vs-demo flag and scientific citations —
@@ -271,7 +288,7 @@ export default function LandingPage() {
                 ].map((t) => (
                   <span
                     key={t}
-                    className="rounded-full border border-line bg-space-850 px-3 py-1 text-xs text-slate-300"
+                    className="rounded-full border border-line bg-surface-subtle px-3 py-1 text-xs text-ink-muted"
                   >
                     {t}
                   </span>
@@ -282,17 +299,15 @@ export default function LandingPage() {
               {[
                 ["Frontend", "Next.js · Leaflet · Recharts", "border-brand-cyan/40"],
                 ["API", "FastAPI · typed schemas · rate-limited", "border-brand-emerald/40"],
-                ["Geo-engine", "Earth Engine · deterministic demo fallback", "border-violet-400/40"],
-                ["Data", "SRTM · Sentinel · CHIRPS · CMIP6 · WorldPop", "border-amber-400/40"],
+                ["Geo-engine", "Earth Engine · deterministic demo fallback", "border-violet-400/50"],
+                ["Data", "SRTM · Sentinel · CHIRPS · CMIP6 · WorldPop", "border-amber-400/50"],
               ].map(([layer, desc, border]) => (
                 <div
                   key={layer}
-                  className={`flex items-center justify-between rounded-xl border ${border} bg-space-900/60 px-5 py-3.5`}
+                  className={`flex items-center justify-between gap-3 rounded-xl border ${border} bg-surface-subtle px-4 py-3.5 sm:px-5`}
                 >
-                  <span className="text-sm font-semibold text-white">
-                    {layer}
-                  </span>
-                  <span className="text-right text-xs text-slate-400">
+                  <span className="text-sm font-semibold text-ink">{layer}</span>
+                  <span className="text-right text-xs text-ink-muted">
                     {desc}
                   </span>
                 </div>
@@ -303,7 +318,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="relative z-10 mx-auto max-w-4xl px-6 py-20 text-center">
+      <section className="relative z-10 mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-20">
         <motion.div
           initial="hidden"
           whileInView="show"
@@ -311,16 +326,16 @@ export default function LandingPage() {
           variants={fadeUp}
         >
           <LogoMark size={48} className="mx-auto mb-6" />
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-4xl">
             See your region&apos;s climate risk now
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-slate-400">
+          <p className="mx-auto mt-4 max-w-xl text-sm text-ink-muted sm:text-base">
             No setup required. Launch the platform and run a flood, drought or
             climate analysis over any city in seconds.
           </p>
           <Link
             href="/app"
-            className="btn-primary mt-8 px-7 py-3 text-base"
+            className="btn-primary mx-auto mt-8 w-full max-w-xs px-7 py-3 text-base sm:w-auto"
           >
             Launch Platform
             <ArrowRight size={18} />
@@ -329,9 +344,9 @@ export default function LandingPage() {
       </section>
 
       {/* footer */}
-      <footer className="relative z-10 border-t border-line">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-slate-500 sm:flex-row">
-          <div className="flex items-center gap-2.5">
+      <footer className="relative z-10 border-t border-line bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-ink-subtle sm:flex-row sm:px-6">
+          <div className="flex items-center gap-2.5 text-center sm:text-left">
             <LogoMark size={22} />
             <span>
               © {new Date().getFullYear()} TerraShield AI — Climate intelligence
@@ -339,15 +354,15 @@ export default function LandingPage() {
             </span>
           </div>
           <div className="flex items-center gap-5">
-            <a href="#modules" className="transition hover:text-white">
+            <a href="#modules" className="transition hover:text-ink">
               Modules
             </a>
-            <a href="#architecture" className="transition hover:text-white">
+            <a href="#architecture" className="transition hover:text-ink">
               Architecture
             </a>
             <a
               href="https://github.com"
-              className="inline-flex items-center gap-1.5 transition hover:text-white"
+              className="inline-flex items-center gap-1.5 transition hover:text-ink"
             >
               <Github size={15} /> Source
             </a>
@@ -375,13 +390,15 @@ function SectionHeader({
       variants={fadeUp}
       className="mx-auto max-w-2xl text-center"
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-cyan/70">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-cyan">
         {eyebrow}
       </p>
-      <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <h2 className="mt-3 text-2xl font-bold tracking-tight text-ink sm:text-4xl">
         {title}
       </h2>
-      <p className="mt-4 text-base leading-relaxed text-slate-400">{subtitle}</p>
+      <p className="mt-4 text-sm leading-relaxed text-ink-muted sm:text-base">
+        {subtitle}
+      </p>
     </motion.div>
   );
 }

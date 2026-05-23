@@ -71,10 +71,10 @@ export function AoiBar({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-[1000] flex justify-center px-3">
-      <div className="pointer-events-auto flex max-w-[calc(100%-1rem)] flex-col gap-2 rounded-2xl border border-line bg-space-900/85 p-2 shadow-panel backdrop-blur-xl sm:flex-row sm:items-center">
+      <div className="pointer-events-auto flex w-full max-w-[calc(100%-0.5rem)] flex-col gap-2 rounded-2xl border border-line bg-white/90 p-2 shadow-panel backdrop-blur-xl sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex items-center gap-1.5 px-1.5">
           <MapPin size={14} className="text-brand-cyan" />
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
             AOI
           </span>
         </div>
@@ -83,14 +83,12 @@ export function AoiBar({
         <div ref={boxRef} className="relative">
           <button
             onClick={() => setOpen((o) => !o)}
-            className={`chip min-w-[140px] justify-between ${
+            className={`chip w-full min-w-[140px] justify-between sm:w-auto ${
               activeStateName && !drawMode ? "chip-active" : ""
             }`}
             title="Choose any of India's 32 states/UTs"
           >
-            <span className="truncate">
-              {activeStateName ?? "All states…"}
-            </span>
+            <span className="truncate">{activeStateName ?? "All states…"}</span>
             <ChevronDown
               size={13}
               className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
@@ -98,28 +96,29 @@ export function AoiBar({
           </button>
 
           {open && (
-            <div className="absolute left-0 top-full z-[1100] mt-2 w-64 overflow-hidden rounded-xl border border-line bg-space-900/95 shadow-panel backdrop-blur-xl">
+            <div className="absolute left-0 top-full z-[1100] mt-2 w-[min(16rem,calc(100vw-3rem))] overflow-hidden rounded-xl border border-line bg-white shadow-float">
               <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-                <Search size={13} className="shrink-0 text-slate-500" />
+                <Search size={13} className="shrink-0 text-ink-faint" />
                 <input
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search states…"
-                  className="w-full bg-transparent text-xs text-white placeholder:text-slate-600 focus:outline-none"
+                  className="w-full bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
                 />
                 {query && (
                   <button
                     onClick={() => setQuery("")}
-                    className="text-slate-500 hover:text-slate-300"
+                    className="text-ink-faint hover:text-ink-muted"
+                    aria-label="Clear search"
                   >
                     <X size={13} />
                   </button>
                 )}
               </div>
-              <div className="max-h-64 overflow-y-auto py-1">
+              <div className="max-h-[min(16rem,40vh)] overflow-y-auto py-1">
                 {filtered.length === 0 && (
-                  <div className="px-3 py-3 text-center text-[11px] text-slate-600">
+                  <div className="px-3 py-3 text-center text-[11px] text-ink-faint">
                     No matching state
                   </div>
                 )}
@@ -129,10 +128,10 @@ export function AoiBar({
                     <button
                       key={s.name}
                       onClick={() => pickState(s)}
-                      className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors ${
+                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors ${
                         isActive
-                          ? "bg-brand-cyan/10 text-white"
-                          : "text-slate-300 hover:bg-space-850 hover:text-white"
+                          ? "bg-brand-cyan/10 text-cyan-700"
+                          : "text-ink-muted hover:bg-surface-subtle hover:text-ink"
                       }`}
                     >
                       <span className="truncate">{s.name}</span>
@@ -149,13 +148,14 @@ export function AoiBar({
 
         <span className="hidden h-5 w-px bg-line sm:block" />
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* preset cities — horizontally scrollable on mobile to avoid overflow */}
+        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {LOCATIONS.map((loc) => (
             <button
               key={loc.id}
               onClick={() => onSelectLocation(loc)}
               title={`${loc.name}, ${loc.region}`}
-              className={`chip ${
+              className={`chip shrink-0 ${
                 activeId === loc.id && !drawMode ? "chip-active" : ""
               }`}
             >
@@ -165,7 +165,7 @@ export function AoiBar({
 
           <button
             onClick={onToggleDraw}
-            className={`chip ${drawMode ? "chip-active" : ""}`}
+            className={`chip shrink-0 ${drawMode ? "chip-active" : ""}`}
             title="Click two corners on the map to draw a bounding box"
           >
             {drawMode ? <X size={12} /> : <Pencil size={12} />}
@@ -175,7 +175,7 @@ export function AoiBar({
       </div>
 
       {drawMode && (
-        <div className="pointer-events-none absolute top-full mt-2 flex items-center gap-1.5 rounded-full border border-brand-cyan/40 bg-space-900/90 px-3 py-1.5 text-[11px] text-brand-cyan shadow-panel backdrop-blur">
+        <div className="pointer-events-none absolute top-full mt-2 flex items-center gap-1.5 rounded-full border border-brand-cyan/50 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-cyan-700 shadow-panel backdrop-blur">
           <Check size={12} /> Click two opposite corners on the map
         </div>
       )}

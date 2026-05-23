@@ -74,23 +74,28 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
         ee.Filter.eq("year", 2020)
     ).mosaic().clip(geom)
     builtup = ee.Image("ESA/WorldCover/v200/2021").select("Map").eq(50).clip(geom)
-
-    # Hazard footprint: reuse flood susceptibility as a proxy here.
-    from . import flood
-    sus = flood._susceptibility_live(  # noqa: SLF001 (internal reuse)
-        norm, flood._normalize_weights(None), 1.0, "normal"
-    )
-    # The live susceptibility returns tiles, not an image; recompute a threshold mask.
     dem = ee.Image("USGS/SRTMGL1_003").clip(geom)
-    hazard_mask = dem.lt(dem.reduceRegion(ee.Reducer.percentile([30]), geom, 90,
-                                          maxPixels=1e9, bestEffort=True).values().get(0))
 
-    total_pop = ee.Number(pop.reduceRegion(ee.Reducer.sum(), geom, 100,
-                                           maxPixels=1e9, bestEffort=True).values().get(0))
-    exposed_pop = ee.Number(
-        pop.updateMask(hazard_mask).reduceRegion(ee.Reducer.sum(), geom, 100,
-                                                 maxPixels=1e9, bestEffort=True).values().get(0)
-    )
+    # Flood hazard footprint proxy: low-lying terrain (bottom 30% of elevation).
+    # Resolve the threshold to a Python float so the comparison casts cleanly.
+    p30 = dem.reduceRegion(
+        reducer=ee.Reducer.percentile([30]), geometry=geom, scale=90,
+        maxPixels=1e9, bestEffort=True,
+    ).values().get(0).getInfo()
+    hazard_mask = dem.lte(p30 if p30 is not None else 99999)
+
+    def _sum(img, scale):
+        d = img.reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=scale,
+                             maxPixels=1e9, bestEffort=True, tileScale=4)
+        v = d.values().get(0)
+        return ee.Number(ee.Algorithms.If(v, v, 0)).getInfo()
+
+    built_km2_img = builtup.multiply(ee.Image.pixelArea()).divide(1e6)
+    total_pop = _sum(pop, 100)
+    exposed_pop = _sum(pop.updateMask(hazard_mask), 100)
+    built_total = _sum(built_km2_img, 20)
+    built_exposed = _sum(built_km2_img.updateMask(hazard_mask), 20)
+
     return {
         "module": "infra",
         "product": "exposure",
@@ -100,8 +105,11 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
         "grid": None,
         "legend": [{"label": "Exposed", "color": "#67000d"}],
         "stats": {
-            "population_total": int(total_pop.getInfo() or 0),
-            "population_exposed": int(exposed_pop.getInfo() or 0),
+            "population_total": int(total_pop),
+            "population_exposed": int(exposed_pop),
+            "population_exposed_pct": round(exposed_pop / max(total_pop, 1) * 100, 1),
+            "builtup_km2": round(built_total, 2),
+            "builtup_exposed_km2": round(built_exposed, 2),
             "area_km2": norm["area_km2"],
         },
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},

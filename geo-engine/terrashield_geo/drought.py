@@ -74,37 +74,78 @@ def _spi_demo(norm, scale_months) -> dict[str, Any]:
     }
 
 
+def _spi_gamma(hist: list, x) -> float:
+    """Standardized Precipitation Index via the canonical gamma fit (McKee et al.,
+    1993): fit a 2-parameter gamma to the non-zero accumulations, mix in the
+    probability of zero, then map the CDF to the standard normal."""
+    import numpy as np
+    from scipy import stats
+
+    arr = np.array([h for h in hist if h is not None], dtype=float)
+    arr = arr[~np.isnan(arr)]
+    if arr.size < 5 or x is None:
+        return 0.0
+    n = arr.size
+    q = float((arr <= 0).sum()) / n  # probability of zero precipitation
+    nz = arr[arr > 0]
+    if nz.size < 3:
+        return 0.0
+    a, _loc, scale = stats.gamma.fit(nz, floc=0)
+    cdf = q + (1 - q) * stats.gamma.cdf(float(x), a, loc=0, scale=scale)
+    # Clamp to ~±3 sigma (norm.cdf(±3)) — SPI beyond this is almost always a data
+    # artifact, not a real signal.
+    cdf = min(max(cdf, 0.00135), 0.99865)
+    return round(float(stats.norm.ppf(cdf)), 2)
+
+
 def _spi_live(norm, scale_months) -> dict[str, Any]:  # pragma: no cover
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
 
     chirps = ee.ImageCollection("UCSB-CHG/CHIRPS/PENTAD").select("precipitation")
-    # Build a monthly accumulation series, then z-score the most recent window
-    # against the historical distribution (a pragmatic SPI approximation).
-    end = ee.Date(chirps.aggregate_max("system:time_start"))
-    window = end.advance(-scale_months, "month")
-    recent = chirps.filterDate(window, end).sum().clip(geom)
-
+    # Anchor to the START of the latest month so the most recent window uses the 3
+    # fully-complete months before it (CHIRPS pentads lag ~3 weeks; the latest
+    # partial month would otherwise read as a false extreme drought).
+    last = ee.Date(chirps.aggregate_max("system:time_start"))
+    end = ee.Date.fromYMD(last.get("year"), last.get("month"), 1)
+    end_month = end.get("month")
     years = ee.List.sequence(1991, 2020)
 
-    def yearly(y):
+    # One scale_months accumulation per historical year, ending in the same month.
+    def window_sum(y):
         y = ee.Number(y)
-        s = ee.Date.fromYMD(y, end.get("month"), 1).advance(-scale_months, "month")
-        e = ee.Date.fromYMD(y, end.get("month"), 1)
-        return chirps.filterDate(s, e).sum().clip(geom).set("year", y)
+        e = ee.Date.fromYMD(y, end_month, 1)
+        s = e.advance(-scale_months, "month")
+        return chirps.filterDate(s, e).sum().set("year", y)
 
-    hist = ee.ImageCollection(years.map(yearly))
-    mean = hist.mean()
-    std = hist.reduce(ee.Reducer.stdDev()).max(0.001)
-    spi_img = recent.subtract(mean).divide(std).rename("spi")
+    hist_ic = ee.ImageCollection(years.map(window_sum))
 
+    def region_val(img):
+        v = ee.Image(img).reduceRegion(
+            reducer=ee.Reducer.mean(), geometry=geom, scale=5000,
+            maxPixels=1e9, bestEffort=True, tileScale=4,
+        ).values().get(0)
+        return ee.Algorithms.If(v, v, 0)
+
+    # Pull the regional accumulation series + the recent value, fit gamma in Python.
+    hist_vals = ee.List(hist_ic.toList(hist_ic.size()).map(region_val)).getInfo()
+    recent_img = chirps.filterDate(end.advance(-scale_months, "month"), end).sum()
+    _rv = recent_img.reduceRegion(
+        reducer=ee.Reducer.mean(), geometry=geom, scale=5000,
+        maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).values().get(0)
+    recent_val = ee.Number(ee.Algorithms.If(_rv, _rv, 0)).getInfo()
+    spi_value = _spi_gamma(hist_vals, recent_val)
+
+    # Per-pixel SPI map: a z-score image (band names aligned to avoid mismatch).
+    clim_mean = hist_ic.mean().rename("p")
+    clim_std = hist_ic.reduce(ee.Reducer.stdDev()).rename("p").max(1)
+    spi_img = recent_img.rename("p").subtract(clim_mean).divide(clim_std).rename("spi").clip(geom)
     tile_url = tiles.image_tile_url(
-        spi_img, {"min": -2.5, "max": 2.5, "palette": ["#730000", "#ffaa00", "#ffffff", "#41b6c4", "#253494"]}
+        spi_img, {"min": -2.5, "max": 2.5,
+                  "palette": ["#730000", "#ffaa00", "#ffffff", "#41b6c4", "#253494"]}
     )
-    mean_spi = ee.Number(
-        spi_img.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=5000,
-                             maxPixels=1e9, bestEffort=True).get("spi")
-    ).getInfo()
+
     return {
         "module": "drought",
         "product": "spi",
@@ -114,8 +155,9 @@ def _spi_live(norm, scale_months) -> dict[str, Any]:  # pragma: no cover
         "grid": None,
         "legend": [{"label": l, "color": c} for l, _, c in SPI_CLASSES],
         "stats": {
-            "mean_spi": round(mean_spi, 2),
-            "class": _classify_spi(mean_spi),
+            "mean_spi": round(spi_value, 2),
+            "class": _classify_spi(spi_value),
+            "method": "gamma-fit SPI (McKee et al., 1993)",
             "area_km2": norm["area_km2"],
         },
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},

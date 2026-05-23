@@ -9,7 +9,8 @@ import {
   type ResilienceControlState,
 } from "@/components/Controls";
 import { ResilienceResultSwitch } from "@/components/ResilienceResult";
-import { Spinner, ErrorNote } from "@/components/ui";
+import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
+import { Network } from "lucide-react";
 import {
   optimizeShelters,
   optimizeEvacuation,
@@ -121,13 +122,13 @@ export function ResiliencePanel({
       {/* header */}
       <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
         <span
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-space-850 ${meta.accent}`}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-subtle ${meta.accent}`}
         >
           <meta.icon size={18} />
         </span>
         <div>
-          <div className="text-sm font-semibold text-white">{meta.name}</div>
-          <div className="text-[11px] text-slate-500">{meta.tagline}</div>
+          <div className="text-sm font-semibold text-ink">{meta.name}</div>
+          <div className="text-[11px] text-ink-subtle">{meta.tagline}</div>
         </div>
       </div>
 
@@ -143,7 +144,7 @@ export function ResiliencePanel({
 
         <div className="border-t border-line pt-5">
           {error && <ErrorNote message={error} />}
-          {!error && loading && !hasResult && <Spinner />}
+          {!error && loading && !hasResult && <ResultSkeleton />}
           {!error && hasResult && (
             <motion.div
               key={state.tool}
@@ -161,9 +162,11 @@ export function ResiliencePanel({
             </motion.div>
           )}
           {!error && !loading && !hasResult && (
-            <p className="text-center text-xs text-slate-600">
-              Pick an optimization model and run it to see results.
-            </p>
+            <EmptyState
+              icon={Network}
+              title="No optimization yet"
+              message="Pick an optimization model and run it to see results."
+            />
           )}
         </div>
       </div>
