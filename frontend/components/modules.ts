@@ -7,6 +7,7 @@ import {
   Globe2,
   Network,
   CloudRain,
+  Droplets,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleId } from "@/lib/types";
@@ -66,6 +67,17 @@ export const MODULES: ModuleMeta[] = [
       "Open-Meteo 16-day forecast over your AOI — daily precipitation, heavy-rain days and a flood-watch nowcast for the days ahead.",
     accent: "text-sky-600",
     gradient: "from-sky-500/20 to-cyan-500/10",
+  },
+  {
+    id: "groundwater",
+    name: "GroundwaterAI",
+    short: "Groundwater",
+    icon: Droplets,
+    tagline: "GRACE terrestrial water storage",
+    description:
+      "NASA GRACE / GRACE-FO terrestrial water storage anomalies reveal groundwater depletion and recharge trends at regional / state scale.",
+    accent: "text-indigo-600",
+    gradient: "from-indigo-500/20 to-blue-500/10",
   },
   {
     id: "infra",

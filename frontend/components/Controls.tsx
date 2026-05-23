@@ -75,6 +75,15 @@ export const DEFAULT_WEATHER: WeatherControlState = {
   days: 7,
 };
 
+// GroundwaterAI: NASA GRACE terrestrial water storage. Single run, no params.
+export interface GroundwaterControlState {
+  product: "storage";
+}
+
+export const DEFAULT_GROUNDWATER: GroundwaterControlState = {
+  product: "storage",
+};
+
 export type ResilienceTool =
   | "shelters"
   | "evacuation"
@@ -501,6 +510,25 @@ export function WeatherControls({
         required.
       </p>
       <RunButton loading={loading} onClick={onRun} label="Get forecast" />
+    </div>
+  );
+}
+
+// ---------------- GroundwaterAI ----------------
+export function GroundwaterControls({
+  loading,
+  onRun,
+}: {
+  loading: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <p className="note-box text-[11px] leading-relaxed">
+        NASA GRACE terrestrial water storage; regional / state scale. Maps
+        groundwater depletion and recharge trends from satellite gravimetry.
+      </p>
+      <RunButton loading={loading} onClick={onRun} label="Analyze groundwater" />
     </div>
   );
 }

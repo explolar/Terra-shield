@@ -23,10 +23,12 @@ import type {
   PointFeatureCollection,
   LineFeatureCollection,
   InfraCriticalityResponse,
+  GroundwaterResponse,
 } from "@/lib/types";
 import {
   productValueConfig,
   valueToColor,
+  anomalyColor,
 } from "@/lib/colors";
 import {
   LIGHT_BASEMAP,
@@ -43,6 +45,8 @@ interface MapViewProps {
   route?: LineFeatureCollection | null;
   // InfraRisk road-criticality LineString grid (colored by tier)
   criticality?: InfraCriticalityResponse | null;
+  // GroundwaterAI: GRACE storage result — live tile and/or demo anomaly grid
+  groundwater?: GroundwaterResponse | null;
   // FloodAI per-factor XYZ tile layers (live mode only) + which are toggled on
   factorUrls?: Partial<Record<FloodFactor, string>> | null;
   activeFactors?: FloodFactor[];
@@ -279,6 +283,7 @@ export default function MapView({
   shelters,
   route,
   criticality,
+  groundwater,
   factorUrls,
   activeFactors,
   severityUrl,
@@ -438,6 +443,43 @@ export default function MapView({
     ? `crit-${JSON.stringify(bbox)}-${criticality.grid.features.length}`
     : "crit-none";
 
+  // ----- GroundwaterAI (GRACE storage anomaly grid, diverging palette) -----
+  // Symmetric half-range from the observed anomalies so 0 maps to the pale mid.
+  const gwSpan = useMemo<number>(() => {
+    const feats = groundwater?.grid?.features ?? [];
+    const vals = feats
+      .map((f) => f.properties?.anomaly_cm)
+      .filter((v): v is number => typeof v === "number");
+    if (!vals.length) return 16;
+    const m = Math.max(...vals.map((v) => Math.abs(v)));
+    return m > 0 ? m : 16;
+  }, [groundwater]);
+
+  function gwStyle(feature?: Feature): PathOptions {
+    const v = feature?.properties?.anomaly_cm;
+    if (typeof v !== "number") return { fillOpacity: 0, opacity: 0 };
+    const color = anomalyColor(v, gwSpan);
+    return {
+      fillColor: color,
+      fillOpacity: 0.66,
+      color,
+      weight: 0.4,
+      opacity: 0.5,
+    };
+  }
+
+  function onEachGw(feature: Feature, leafletLayer: LeafletLayer) {
+    const v = feature.properties?.anomaly_cm;
+    const html = `<div style="font-size:12px"><b>Storage anomaly</b>: ${
+      typeof v === "number" ? `${v > 0 ? "+" : ""}${v.toFixed(1)} cm` : "—"
+    }</div>`;
+    leafletLayer.bindTooltip(html, { sticky: true, opacity: 0.95 });
+  }
+
+  const gwKey = groundwater?.grid
+    ? `gw-${JSON.stringify(bbox)}-${groundwater.grid.features.length}`
+    : "gw-none";
+
   return (
     <MapContainer
       center={[(bbox[1] + bbox[3]) / 2, (bbox[0] + bbox[2]) / 2]}
@@ -507,6 +549,25 @@ export default function MapView({
           data={criticality.grid as any}
           style={critStyle as any}
           onEachFeature={onEachCrit as any}
+        />
+      ) : null}
+
+      {/* GroundwaterAI — live GRACE anomaly tile */}
+      {groundwater?.tile_url && (
+        <TileLayer
+          key={`gw-tile-${groundwater.tile_url}`}
+          url={groundwater.tile_url}
+          opacity={0.8}
+        />
+      )}
+
+      {/* GroundwaterAI — demo anomaly grid (diverging palette) */}
+      {groundwater?.grid?.features?.length ? (
+        <GeoJSON
+          key={gwKey}
+          data={groundwater.grid as any}
+          style={gwStyle as any}
+          onEachFeature={onEachGw as any}
         />
       ) : null}
 

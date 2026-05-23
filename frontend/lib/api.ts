@@ -28,6 +28,7 @@ import type {
   ClimateExtremesResponse,
   InfraCriticalityResponse,
   WeatherForecastResponse,
+  GroundwaterResponse,
 } from "./types";
 
 export const API_BASE =
@@ -163,6 +164,11 @@ export const infraCriticality = (aoi: AOI) =>
 // On provider failure the endpoint returns HTTP 503 -> ApiError.
 export const weatherForecast = (aoi: AOI, days = 7) =>
   post<WeatherForecastResponse>("/weather/forecast", { aoi, days });
+
+// ---- GroundwaterAI ----
+// NASA GRACE terrestrial water storage anomaly (regional / state scale).
+export const groundwaterStorage = (aoi: AOI) =>
+  post<GroundwaterResponse>("/groundwater/storage", { aoi });
 
 // ---- GeoCopilot ----
 export const getCopilotTools = () =>

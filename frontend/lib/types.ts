@@ -337,7 +337,8 @@ export type ModuleId =
   | "infra"
   | "resilience"
   | "copilot"
-  | "weather";
+  | "weather"
+  | "groundwater";
 
 // ---- WeatherCast: live short-range forecast (Open-Meteo) ----
 // POST /weather/forecast -> { aoi, days }
@@ -370,6 +371,44 @@ export interface WeatherForecastResponse {
   days: number;
   daily: WeatherDaily[];
   summary: WeatherSummary;
+}
+
+// ---- GroundwaterAI: NASA GRACE terrestrial water storage ----
+// POST /groundwater/storage -> { aoi }
+export type GroundwaterStressClass =
+  | "Severe depletion"
+  | "High depletion"
+  | "Moderate depletion"
+  | "Stable"
+  | "Recharging";
+
+export interface GroundwaterSeriesPoint {
+  year: number;
+  anomaly_cm: number;
+}
+
+export interface GroundwaterStats {
+  mean_anomaly_cm: number;
+  depletion_trend_cm_yr: number;
+  stress_class: GroundwaterStressClass | string;
+  recharge_proxy_mm_yr: number | null;
+  area_km2: number;
+  dataset?: string;
+}
+
+export interface GroundwaterResponse {
+  module: "groundwater";
+  product: "storage";
+  source: Source;
+  // LIVE: GRACE anomaly XYZ tile. DEMO: null.
+  tile_url: string | null;
+  // DEMO: polygon cells with properties.anomaly_cm. LIVE: null.
+  grid: GeoJSONFeatureCollection | null;
+  // Categorical stress classes describing the trend (shown as a small legend).
+  legend: LegendItem[];
+  // DEMO: ~20-year series. LIVE: [].
+  series: GroundwaterSeriesPoint[];
+  stats: GroundwaterStats;
 }
 
 // ---- ResilienceOR (operations research) ----

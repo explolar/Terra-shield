@@ -8,6 +8,7 @@ import {
   FloodControls,
   InfraControls,
   WeatherControls,
+  GroundwaterControls,
   type ClimateControlState,
   type DroughtControlState,
   type FloodControlState,
@@ -21,6 +22,7 @@ import {
   ExtremesPanel,
   CriticalityPanel,
   WeatherPanel,
+  GroundwaterPanel,
 } from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
@@ -35,6 +37,7 @@ import type {
   ClimateExtremesResponse,
   InfraCriticalityResponse,
   WeatherForecastResponse,
+  GroundwaterResponse,
 } from "@/lib/types";
 
 export interface RightPanelProps {
@@ -66,6 +69,8 @@ export interface RightPanelProps {
   criticality?: InfraCriticalityResponse | null;
   // WeatherCast forecast (no map tile; rendered as a panel)
   weatherForecast?: WeatherForecastResponse | null;
+  // GroundwaterAI: GRACE storage (map tile/grid + panel)
+  groundwater?: GroundwaterResponse | null;
   // FloodAI susceptibility: live 7-day flood nowcast (fire-and-forget)
   floodWatch?: FloodWatch | null;
   // SAR severity overlay toggle
@@ -98,6 +103,7 @@ export function RightPanel(props: RightPanelProps) {
     extremes,
     criticality,
     weatherForecast,
+    groundwater,
     floodWatch,
     severityOn,
     onToggleSeverity,
@@ -114,6 +120,8 @@ export function RightPanel(props: RightPanelProps) {
     moduleId === "infra" && infra.product === "criticality";
   // WeatherCast is panel-only (no map tile), like multi-year / ML-risk.
   const isWeather = moduleId === "weather";
+  // GroundwaterAI renders a dedicated panel AND a map layer (tile/grid).
+  const isGroundwater = moduleId === "groundwater";
 
   return (
     <div className="flex h-full flex-col">
@@ -173,6 +181,9 @@ export function RightPanel(props: RightPanelProps) {
               loading={loading}
               onRun={onRun}
             />
+          )}
+          {moduleId === "groundwater" && (
+            <GroundwaterControls loading={loading} onRun={onRun} />
           )}
         </div>
 
@@ -283,6 +294,29 @@ export function RightPanel(props: RightPanelProps) {
                 icon={BarChart3}
                 title="No forecast yet"
                 message="Pick a forecast horizon and get the live short-range rainfall forecast for your AOI."
+              />
+            )
+          ) : isGroundwater ? (
+            groundwater || loading || error ? (
+              <motion.div
+                key={`groundwater-${groundwater?.source ?? "pending"}-${
+                  groundwater?.stats?.stress_class ?? ""
+                }`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <GroundwaterPanel
+                  data={groundwater ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No analysis yet"
+                message="Run the groundwater analysis to see GRACE terrestrial water storage trends for your AOI."
               />
             )
           ) : (

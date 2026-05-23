@@ -109,6 +109,26 @@ export const BRAND = {
   inkMuted: "#475569",
 };
 
+// ---- GroundwaterAI: diverging GRACE storage-anomaly palette ----
+// Negative (depleted) = red -> brown, near zero = pale, positive (gain) = blue.
+// Anchored around 0 so the pale midpoint always lands on a zero anomaly.
+const GW_MID = "#f5f5f5"; // near-zero anomaly (pale)
+// Each ramp runs pale (near 0) -> saturated (large magnitude).
+const GW_NEG_RAMP = [GW_MID, "#f6e8c3", "#dfc27d", "#bf812d", "#8c510a"]; // depleted -> red/brown
+const GW_POS_RAMP = [GW_MID, "#c7eae5", "#80cdc1", "#35978f", "#01665e"]; // gain -> teal/blue
+
+/**
+ * Map a GRACE storage anomaly (cm) to a diverging color, anchored at 0.
+ * `span` is the symmetric half-range used to normalize magnitude (default 16cm,
+ * matching the ~ -16..+13 demo grid). Depleted (negative) = red -> brown,
+ * near zero = pale, gain (positive) = teal -> blue.
+ */
+export function anomalyColor(value: number, span = 16): string {
+  if (!Number.isFinite(value)) return GW_MID;
+  const t = clamp(Math.abs(value) / (span || 1), 0, 1);
+  return rampColor(value < 0 ? GW_NEG_RAMP : GW_POS_RAMP, t);
+}
+
 // Hazard ramp used in legends (greens -> yellows -> reds).
 export const HAZARD_RAMP = [
   "#1a9850",

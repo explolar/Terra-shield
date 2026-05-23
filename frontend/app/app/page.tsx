@@ -37,6 +37,7 @@ import {
   infraExposure,
   infraCriticality,
   weatherForecast,
+  groundwaterStorage,
 } from "@/lib/api";
 import type {
   AOI,
@@ -50,6 +51,7 @@ import type {
   ClimateExtremesResponse,
   InfraCriticalityResponse,
   WeatherForecastResponse,
+  GroundwaterResponse,
   FloodWatch,
   PointFeatureCollection,
   LineFeatureCollection,
@@ -150,6 +152,11 @@ export default function Dashboard() {
   );
   const [floodWatch, setFloodWatch] = useState<FloodWatch | null>(null);
 
+  // --- GroundwaterAI (GRACE storage): map layer (tile/grid) + panel ---
+  const [groundwater, setGroundwater] = useState<GroundwaterResponse | null>(
+    null,
+  );
+
   // --- layer + request state ---
   const [layer, setLayer] = useState<LayerResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -206,6 +213,7 @@ export default function Dashboard() {
       setMlRisk(null);
       setExtremes(null);
       setCriticality(null);
+      setGroundwater(null);
       try {
         const res = await floodMultiyear(aoi);
         setMultiYear(res);
@@ -222,6 +230,7 @@ export default function Dashboard() {
       setMultiYear(null);
       setExtremes(null);
       setCriticality(null);
+      setGroundwater(null);
       try {
         const res = await floodMlRisk(aoi, flood.ml_model);
         setMlRisk(res);
@@ -240,6 +249,7 @@ export default function Dashboard() {
       setMultiYear(null);
       setMlRisk(null);
       setCriticality(null);
+      setGroundwater(null);
       try {
         const res = await climateExtremes(
           aoi,
@@ -264,6 +274,7 @@ export default function Dashboard() {
       setMlRisk(null);
       setExtremes(null);
       setCriticality(null);
+      setGroundwater(null);
       try {
         const res = await weatherForecast(aoi, weather.days);
         setForecast(res);
@@ -280,12 +291,35 @@ export default function Dashboard() {
       return;
     }
 
+    // GroundwaterAI: GRACE storage — renders BOTH a map layer (tile/grid)
+    // and a panel. Uses its own response shape (not a LayerResponse).
+    if (moduleId === "groundwater") {
+      setLayer(null);
+      setMultiYear(null);
+      setMlRisk(null);
+      setExtremes(null);
+      setCriticality(null);
+      setForecast(null);
+      setFloodWatch(null);
+      try {
+        const res = await groundwaterStorage(aoi);
+        setGroundwater(res);
+      } catch (e: any) {
+        setError(e?.detail || e?.message || "Groundwater analysis failed.");
+        setGroundwater(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     // InfraRisk criticality: road-network LineString grid colored by tier.
     if (moduleId === "infra" && infra.product === "criticality") {
       setLayer(null);
       setMultiYear(null);
       setMlRisk(null);
       setExtremes(null);
+      setGroundwater(null);
       try {
         const res = await infraCriticality(aoi);
         setCriticality(res);
@@ -303,6 +337,7 @@ export default function Dashboard() {
     setMlRisk(null);
     setExtremes(null);
     setCriticality(null);
+    setGroundwater(null);
     setFloodWatch(null);
     try {
       let res: LayerResponse;
@@ -365,6 +400,7 @@ export default function Dashboard() {
     setExtremes(null);
     setCriticality(null);
     setForecast(null);
+    setGroundwater(null);
     setFloodWatch(null);
   }
 
@@ -459,6 +495,7 @@ export default function Dashboard() {
         extremes={extremes}
         criticality={criticality}
         weatherForecast={forecast}
+        groundwater={groundwater}
         floodWatch={floodWatch}
         severityOn={severityOn}
         onToggleSeverity={toggleSeverity}
@@ -496,6 +533,7 @@ export default function Dashboard() {
             shelters={shelters}
             route={route}
             criticality={criticality}
+            groundwater={groundwater}
             onSelectState={selectStateFromMap}
             factorUrls={layer?.factor_urls ?? null}
             activeFactors={activeFactors}
@@ -522,6 +560,28 @@ export default function Dashboard() {
               </div>
               <div className="ml-1 shrink-0">
                 <SourceBadge source={layer.source} />
+              </div>
+            </div>
+          )}
+
+          {/* floating active-layer badge — GroundwaterAI (no LayerResponse) */}
+          {!layer && moduleId === "groundwater" && groundwater && (
+            <div className="pointer-events-none absolute bottom-20 left-3 z-[1000] flex max-w-[calc(100%-1.5rem)] items-center gap-2.5 rounded-xl border border-line bg-white/90 px-3 py-2 shadow-panel backdrop-blur-xl sm:bottom-4 sm:left-4 sm:px-3.5 sm:py-2.5 lg:bottom-4">
+              <span
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-subtle ${meta.accent}`}
+              >
+                <Layers size={14} />
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold capitalize text-ink">
+                  groundwater · water storage
+                </div>
+                <div className="truncate text-[10px] text-ink-subtle">
+                  bbox {bbox.map((b) => b.toFixed(2)).join(", ")}
+                </div>
+              </div>
+              <div className="ml-1 shrink-0">
+                <SourceBadge source={groundwater.source} />
               </div>
             </div>
           )}

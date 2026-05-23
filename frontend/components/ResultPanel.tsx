@@ -22,6 +22,8 @@ import {
   Network,
   CloudRain,
   Wind,
+  Waves,
+  Gauge,
 } from "lucide-react";
 import type {
   FloodFactor,
@@ -34,6 +36,7 @@ import type {
   ClimateExtremesResponse,
   InfraCriticalityResponse,
   WeatherForecastResponse,
+  GroundwaterResponse,
 } from "@/lib/types";
 import { FLOOD_FACTORS, FLOOD_FACTOR_LABELS } from "@/lib/types";
 import {
@@ -54,6 +57,7 @@ import {
   ExtremesChart,
   WeatherPrecipChart,
   WeatherTempChart,
+  GroundwaterTrendChart,
 } from "@/components/Charts";
 
 // Susceptibility class labels (1-5) for the mean_class headline.
@@ -966,6 +970,160 @@ export function WeatherPanel({
         Live short-range forecast from {data.provider}. Heavy-rain days exceed
         the daily-precipitation threshold; the flood-watch reflects the wettest
         days ahead.
+      </p>
+    </div>
+  );
+}
+
+// ---- GroundwaterAI: GRACE terrestrial water storage panel ----
+// Stress badge colors keyed by stress_class (depletion = reds, stable = amber,
+// recharging = green). Falls back to a neutral slate for unknown classes.
+const GW_STRESS_STYLE: Record<string, { bg: string; text: string }> = {
+  "Severe depletion": { bg: "#67000d", text: "#ffffff" },
+  "High depletion": { bg: "#cb181d", text: "#ffffff" },
+  "Moderate depletion": { bg: "#fb6a4a", text: "#3b0a02" },
+  Stable: { bg: "#fee08b", text: "#5b4500" },
+  Recharging: { bg: "#1a9850", text: "#ffffff" },
+};
+
+function GwStressBadge({ stressClass }: { stressClass: string }) {
+  const style = GW_STRESS_STYLE[stressClass] ?? {
+    bg: "#64748b",
+    text: "#ffffff",
+  };
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-slate-900/10"
+      style={{ backgroundColor: style.bg, color: style.text }}
+    >
+      <Waves size={12} />
+      {stressClass}
+    </span>
+  );
+}
+
+export function GroundwaterPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: GroundwaterResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading)
+    return <Spinner label="Analyzing terrestrial water storage…" />;
+  if (!data) return null;
+
+  const { stats, series, legend } = data;
+  const trend = stats.depletion_trend_cm_yr;
+  const trendUp = trend >= 0;
+  const recharge = stats.recharge_proxy_mm_yr;
+  const hasSeries = series.length > 0;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Droplets size={15} className="text-indigo-600" /> Water storage
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      {/* stress badge */}
+      <div className="flex flex-wrap items-center gap-2">
+        <GwStressBadge stressClass={stats.stress_class} />
+      </div>
+
+      {/* stat cards */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <Droplets size={12} /> Storage anomaly
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {stats.mean_anomaly_cm > 0 ? "+" : ""}
+              {stats.mean_anomaly_cm}
+            </span>
+            <span className="text-[11px] text-ink-muted">cm</span>
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{" "}
+            Depletion trend
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span
+              className="text-2xl font-bold tabular-nums"
+              style={{ color: trendUp ? "#1a9850" : "#cb181d" }}
+            >
+              {trendUp ? "+" : ""}
+              {trend}
+            </span>
+            <span className="text-[11px] text-ink-muted">cm/yr</span>
+          </div>
+        </div>
+        <div className="col-span-2 rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <Gauge size={12} /> Recharge proxy
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-lg font-semibold tabular-nums text-ink">
+              {typeof recharge === "number" ? recharge.toLocaleString() : "—"}
+            </span>
+            {typeof recharge === "number" && (
+              <span className="text-[11px] text-ink-muted">mm/yr</span>
+            )}
+            {typeof stats.area_km2 === "number" && (
+              <span className="ml-auto text-[11px] text-ink-muted">
+                {stats.area_km2.toLocaleString()} km²
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* trend line chart (demo) or a note (live) */}
+      {hasSeries ? (
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <BarChart3 size={12} /> Storage anomaly trend (cm)
+            </span>
+          </SectionLabel>
+          <GroundwaterTrendChart series={series} />
+        </div>
+      ) : (
+        <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
+          <Info size={12} className="mt-0.5 shrink-0" />
+          Per-year series available in demo mode.
+        </p>
+      )}
+
+      {/* categorical stress-class legend (describes the trend) */}
+      {legend && legend.length > 0 && (
+        <div>
+          <SectionLabel>Stress classes</SectionLabel>
+          <Legend legend={legend} />
+        </div>
+      )}
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        {stats.dataset
+          ? `${stats.dataset}. `
+          : ""}
+        {data.source === "demo"
+          ? "Deterministic demo series. The same AOI always returns the same trend."
+          : "Computed live from NASA GRACE terrestrial water storage."}
       </p>
     </div>
   );

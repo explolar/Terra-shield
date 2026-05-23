@@ -22,6 +22,7 @@ import type {
   MlFeatureImportance,
   ClimateExtremeIndex,
   WeatherDaily,
+  GroundwaterSeriesPoint,
 } from "@/lib/types";
 import { FLOOD_FACTOR_LABELS, type FloodFactor } from "@/lib/types";
 import { HAZARD_RAMP, rampColor } from "@/lib/colors";
@@ -512,6 +513,82 @@ export function WeatherTempChart({ daily }: { daily: WeatherDaily[] }) {
             dot={false}
             activeDot={{ r: 4, fill: "#0ea5e9" }}
             connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---- GroundwaterAI: GRACE storage-anomaly trend (cm), anchored at 0 ----
+export function GroundwaterTrendChart({
+  series,
+}: {
+  series: GroundwaterSeriesPoint[];
+}) {
+  if (!series.length) {
+    return (
+      <p className="text-xs text-ink-subtle">
+        Per-year series available in demo mode.
+      </p>
+    );
+  }
+  return (
+    <div className="h-52 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={series}
+          margin={{ top: 6, right: 8, left: -14, bottom: 0 }}
+        >
+          <defs>
+            <linearGradient id="gwLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#6366f1" />
+              <stop offset="100%" stopColor="#0ea5e9" />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={gridStroke}
+            vertical={false}
+          />
+          <XAxis
+            dataKey="year"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+            interval="preserveStartEnd"
+            minTickGap={24}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={46}
+            domain={["auto", "auto"]}
+            unit="cm"
+          />
+          <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+          <Tooltip
+            cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+            content={({ active, payload, label }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">{label}</div>
+                  <div className="text-ink-muted">
+                    {Number(payload[0].value) > 0 ? "+" : ""}
+                    {payload[0].value} cm anomaly
+                  </div>
+                </div>
+              ) : null
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="anomaly_cm"
+            stroke="url(#gwLine)"
+            strokeWidth={2.4}
+            dot={{ r: 2.5, fill: "#6366f1", strokeWidth: 0 }}
+            activeDot={{ r: 4, fill: "#6366f1" }}
           />
         </LineChart>
       </ResponsiveContainer>

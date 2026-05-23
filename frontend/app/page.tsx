@@ -37,7 +37,7 @@ const PIPELINE = [
   {
     icon: Cpu,
     title: "Run physical + AI models",
-    body: "Flood, climate, drought and exposure engines compute in seconds.",
+    body: "Flood, climate, drought, groundwater and exposure engines compute in seconds.",
   },
   {
     icon: ShieldCheck,
@@ -157,8 +157,8 @@ export default function LandingPage() {
           className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:mt-16 sm:grid-cols-4 sm:gap-4"
         >
           {[
-            ["6", "Risk modules"],
-            ["10+", "EO datasets"],
+            ["7", "Risk modules"],
+            ["12+", "EO datasets"],
             ["SSP5-8.5", "Climate horizons"],
             ["< 5s", "Per analysis"],
           ].map(([n, l]) => (
@@ -179,7 +179,7 @@ export default function LandingPage() {
       >
         <SectionHeader
           eyebrow="Platform"
-          title="Eight engines, one workspace"
+          title="Nine engines, one workspace"
           subtitle="Each module is a production-grade geospatial model that runs over your area of interest and returns mappable, cited results."
         />
         <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
