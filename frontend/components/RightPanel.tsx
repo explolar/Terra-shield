@@ -251,7 +251,7 @@ export function RightPanel(props: RightPanelProps) {
               <EmptyState
                 icon={BarChart3}
                 title="No extremes yet"
-                message="Pick a scenario and horizon, then run to see ETCCDI climate-extremes indices."
+                message="Pick a scenario and horizon, then run to see climate extreme indices."
               />
             )
           ) : isCriticality ? (
@@ -272,7 +272,7 @@ export function RightPanel(props: RightPanelProps) {
               <EmptyState
                 icon={BarChart3}
                 title="No criticality yet"
-                message="Run criticality to rank road segments by edge betweenness centrality."
+                message="Run criticality to find the roads most important to keep open."
               />
             )
           ) : isWeather ? (
@@ -316,7 +316,7 @@ export function RightPanel(props: RightPanelProps) {
               <EmptyState
                 icon={BarChart3}
                 title="No analysis yet"
-                message="Run the groundwater analysis to see GRACE terrestrial water storage trends for your AOI."
+                message="Run the analysis to see groundwater storage and depletion trends for your area."
               />
             )
           ) : (

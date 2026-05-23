@@ -42,7 +42,7 @@ const PIPELINE = [
   {
     icon: ShieldCheck,
     title: "Decide with confidence",
-    body: "Cited, reliability-scored layers your team can act on.",
+    body: "Reliability-scored layers your team can act on.",
   },
 ];
 
@@ -180,7 +180,7 @@ export default function LandingPage() {
         <SectionHeader
           eyebrow="Platform"
           title="Nine engines, one workspace"
-          subtitle="Each module is a production-grade geospatial model that runs over your area of interest and returns mappable, cited results."
+          subtitle="Each module is a production-grade model that runs over your area and returns clear, mappable results."
         />
         <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
           {MODULES.map((m, i) => (
@@ -272,10 +272,9 @@ export default function LandingPage() {
                 Built for production, not just a demo
               </h3>
               <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-                A typed Next.js frontend talks to a FastAPI compute backend
-                backed by a Google Earth Engine geo-engine. Every layer carries
-                its provenance, a live-vs-demo flag and scientific citations —
-                so the platform degrades gracefully and is always trustworthy.
+                A typed Next.js frontend talks to a FastAPI backend powered by
+                Google Earth Engine. Every layer is tagged live or demo and
+                falls back gracefully — so the platform is always trustworthy.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {[

@@ -165,14 +165,6 @@ const STATES_STYLE: PathOptions = {
   interactive: false,
 };
 
-const DISTRICTS_STYLE: PathOptions = {
-  color: "#94a3b8",
-  weight: 0.4,
-  opacity: 0.3,
-  fill: false,
-  interactive: false,
-};
-
 // Track zoom for conditional district rendering.
 function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
   const map = useMap();
@@ -201,12 +193,9 @@ function IndiaBoundaries({
   // misaligned against the basemap's true coastline/borders.
   const showOutline = zoom <= 6;
   const showStates = zoom <= 7;
-  const showDistricts = zoom >= 7 && zoom <= 8;
 
   const outline = useStaticGeo("/geo/india_outline.geojson", showOutline);
   const states = useStaticGeo("/geo/india_states.geojson", showStates);
-  // Districts are large (~340 KB); only fetch in the regional zoom band.
-  const districts = useStaticGeo("/geo/india_districts.geojson", showDistricts);
 
   // States become clickable AOI-selectors only when a handler is provided.
   const interactiveStates = !!onSelectState;
@@ -263,15 +252,6 @@ function IndiaBoundaries({
               : STATES_STYLE) as any
           }
           onEachFeature={interactiveStates ? (onEachState as any) : undefined}
-        />
-      )}
-
-      {/* districts in the regional zoom band only */}
-      {showDistricts && districts && (
-        <GeoJSON
-          key="districts"
-          data={districts as any}
-          style={DISTRICTS_STYLE as any}
         />
       )}
 
@@ -603,15 +583,17 @@ export default function MapView({
         </CircleMarker>
       ))}
 
-      {/* AOI outline */}
+      {/* AOI outline — cyan dashed box, added last so it sits on top of the
+          analysis tiles/grids (same-pane layers stack by add order). */}
       <Rectangle
         bounds={aoiBounds}
         pathOptions={{
           color: "#0891b2",
           weight: 2,
           fillColor: "#06b6d4",
-          fillOpacity: 0.04,
-          dashArray: "6 6",
+          fillOpacity: 0.05,
+          dashArray: "8 6",
+          interactive: false,
         }}
       />
 

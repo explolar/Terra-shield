@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, RotateCcw } from "lucide-react";
+import { Play, RotateCcw, Loader2 } from "lucide-react";
 import { Slider } from "@/components/Slider";
 import { Toggle, SectionLabel } from "@/components/ui";
 import {
@@ -107,17 +107,36 @@ export const DEFAULT_RESILIENCE: ResilienceControlState = {
 function RunButton({
   loading,
   onClick,
-  label = "Run analysis",
+  label = "Analyze",
 }: {
   loading: boolean;
   onClick: () => void;
   label?: string;
 }) {
   return (
-    <button onClick={onClick} disabled={loading} className="btn-primary w-full">
-      <Play size={15} className={loading ? "animate-pulse" : ""} />
-      {loading ? "Computing…" : label}
+    <button
+      onClick={onClick}
+      disabled={loading}
+      aria-busy={loading}
+      className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70"
+    >
+      {loading ? (
+        <Loader2 size={15} className="animate-spin" />
+      ) : (
+        <Play size={15} />
+      )}
+      {loading ? "Running…" : label}
     </button>
+  );
+}
+
+// Small reusable progress hint for slow Earth Engine modules.
+function EeProgressHint() {
+  return (
+    <p className="-mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-ink-subtle">
+      <Loader2 size={11} className="animate-spin" />
+      Computing on Earth Engine — large areas can take 20–40s.
+    </p>
   );
 }
 
@@ -153,10 +172,17 @@ export function FloodControls({
   // Per-product run-button label.
   const runLabel =
     state.product === "ml_risk"
-      ? "Train model"
+      ? "Train"
       : state.product === "multiyear"
-        ? "Run trend"
-        : "Run analysis";
+        ? "Analyze trend"
+        : "Analyze";
+
+  // Slow live products that compute on Earth Engine.
+  const isSlowProduct =
+    state.product === "susceptibility" ||
+    state.product === "sar" ||
+    state.product === "multiyear" ||
+    state.product === "ml_risk";
 
   return (
     <div className="space-y-5">
@@ -193,18 +219,18 @@ export function FloodControls({
         <>
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <SectionLabel>Factor weights · 11-factor AHP</SectionLabel>
+              <SectionLabel>Factor weights · AHP-weighted, 11 factors</SectionLabel>
               <button
                 onClick={resetWeights}
                 disabled={!ahpDefaults}
                 title={
                   ahpDefaults
-                    ? "Reset all sliders to the AHP default weights"
-                    : "Loading AHP defaults…"
+                    ? "Reset all sliders to the recommended weights"
+                    : "Loading recommended weights…"
                 }
                 className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-subtle transition hover:text-brand-cyan disabled:opacity-40 disabled:hover:text-ink-subtle"
               >
-                <RotateCcw size={11} /> Reset to AHP weights
+                <RotateCcw size={11} /> Reset weights
               </button>
             </div>
             <div className="space-y-3">
@@ -236,25 +262,21 @@ export function FloodControls({
 
       {state.product === "sar" && (
         <p className="note-box text-xs leading-relaxed">
-          Sentinel-1 SAR open-water detection compares pre- and post-event
-          backscatter to map inundation extent.
+          Maps flood water from Sentinel-1 radar — works through cloud, day or
+          night.
         </p>
       )}
 
       {state.product === "road" && (
         <p className="note-box text-xs leading-relaxed">
-          Flags road segments crossing high-susceptibility cells as likely
-          impassable. Red = disrupted, blue = passable.
+          Shows which roads flooding is likely to cut off. Red = disrupted, blue
+          = passable.
         </p>
       )}
 
       {state.product === "multiyear" && (
         <p className="note-box text-xs leading-relaxed">
-          Reconstructs annual flooded-area from the JRC Global Surface Water
-          history to reveal the multi-year inundation trend.
-          <span className="mt-1.5 block text-[11px] text-ink-subtle">
-            Live multi-year analysis can take ~30–60s.
-          </span>
+          Tracks how flooded area has changed year over year.
         </p>
       )}
 
@@ -275,21 +297,14 @@ export function FloodControls({
             ))}
           </select>
           <p className="note-box mt-3 text-[11px] leading-relaxed">
-            Supervised flood-risk classifier trained on Earth Engine samples,
-            labelled by JRC historical-flood occurrence.
-            <span className="mt-1.5 block text-ink-subtle">
-              Live training can take ~30–50s.
-            </span>
+            Trains a flood-risk model on historical flooding and ranks what
+            drives the risk.
           </p>
         </div>
       )}
 
       <RunButton loading={loading} onClick={onRun} label={runLabel} />
-      {loading && state.product === "ml_risk" && (
-        <p className="-mt-2 text-center text-[11px] text-ink-subtle">
-          training on Earth Engine samples…
-        </p>
-      )}
+      {loading && isSlowProduct && <EeProgressHint />}
     </div>
   );
 }
@@ -360,14 +375,15 @@ export function ClimateControls({
       </div>
       <p className="note-box text-[11px] leading-relaxed">
         {isExtremes
-          ? "ETCCDI climate-extremes indices from the NASA NEX-GDDP-CMIP6 ensemble (0.25° downscaled), baseline 1995–2014."
-          : "NASA NEX-GDDP-CMIP6 ensemble, 0.25° downscaled, baseline 1995–2014."}
+          ? "Climate extreme indices from the downscaled CMIP6 ensemble, vs the 1995–2014 baseline."
+          : "Downscaled CMIP6 ensemble, vs the 1995–2014 baseline."}
       </p>
       <RunButton
         loading={loading}
         onClick={onRun}
-        label={isExtremes ? "Run extremes" : "Run projection"}
+        label={isExtremes ? "Analyze extremes" : "Forecast"}
       />
+      {loading && <EeProgressHint />}
     </div>
   );
 }
@@ -414,10 +430,11 @@ export function DroughtControls({
       )}
       <p className="note-box text-[11px] leading-relaxed">
         {state.product === "spi"
-          ? "Standardized Precipitation Index from CHIRPS (McKee et al., 1993). Negative = drier than normal."
-          : "NDVI-based Vegetation Condition Index from MODIS. Low values = crop / vegetation stress."}
+          ? "Standardized Precipitation Index (SPI). Negative = drier than normal."
+          : "Vegetation Condition Index from satellite greenness. Low = crop or vegetation stress."}
       </p>
-      <RunButton loading={loading} onClick={onRun} />
+      <RunButton loading={loading} onClick={onRun} label="Analyze" />
+      {loading && <EeProgressHint />}
     </div>
   );
 }
@@ -465,14 +482,15 @@ export function InfraControls({
 
       <p className="note-box text-[11px] leading-relaxed">
         {isCriticality
-          ? "Ranks road segments by edge betweenness centrality (NetworkX) — the most-traversed links whose failure would most fragment the network."
-          : "Overlays the hazard footprint on WorldPop population and ESA WorldCover built-up land to quantify exposure."}
+          ? "Network-criticality scoring — finds the roads whose failure would most fragment the network."
+          : "Overlays the hazard on population and built-up land to show who and what is exposed."}
       </p>
       <RunButton
         loading={loading}
         onClick={onRun}
-        label={isCriticality ? "Rank criticality" : "Compute exposure"}
+        label={isCriticality ? "Rank roads" : "Analyze exposure"}
       />
+      {loading && <EeProgressHint />}
     </div>
   );
 }
@@ -505,11 +523,10 @@ export function WeatherControls({
         />
       </div>
       <p className="note-box text-[11px] leading-relaxed">
-        Live short-range forecast from Open-Meteo over your AOI centroid. Daily
-        precipitation, heavy-rain days and a flood-watch nowcast — no API key
-        required.
+        Live rainfall forecast over your area — daily precipitation, heavy-rain
+        days and a flood watch for the days ahead.
       </p>
-      <RunButton loading={loading} onClick={onRun} label="Get forecast" />
+      <RunButton loading={loading} onClick={onRun} label="Forecast" />
     </div>
   );
 }
@@ -525,10 +542,10 @@ export function GroundwaterControls({
   return (
     <div className="space-y-5">
       <p className="note-box text-[11px] leading-relaxed">
-        NASA GRACE terrestrial water storage; regional / state scale. Maps
-        groundwater depletion and recharge trends from satellite gravimetry.
+        Groundwater storage &amp; depletion, from satellite gravimetry.
       </p>
-      <RunButton loading={loading} onClick={onRun} label="Analyze groundwater" />
+      <RunButton loading={loading} onClick={onRun} label="Analyze" />
+      {loading && <EeProgressHint />}
     </div>
   );
 }
@@ -546,9 +563,9 @@ export function ResilienceControls({
   onRun: () => void;
 }) {
   const runLabels: Record<ResilienceTool, string> = {
-    shelters: "Optimize siting",
-    evacuation: "Find evacuation route",
-    mitigation: "Optimize plan",
+    shelters: "Optimize",
+    evacuation: "Find route",
+    mitigation: "Optimize",
     ahp: "Loaded",
   };
 
@@ -591,8 +608,7 @@ export function ResilienceControls({
             />
           </div>
           <p className="note-box text-[11px] leading-relaxed">
-            Maximal Covering Location Problem — place k shelters to cover the most
-            demand within the radius.
+            Places shelters to cover the most people within the radius.
           </p>
           <RunButton
             loading={loading}
@@ -605,9 +621,8 @@ export function ResilienceControls({
       {state.tool === "evacuation" && (
         <>
           <p className="note-box text-[11px] leading-relaxed">
-            Computes the shortest-path evacuation corridor across the road
-            network from an at-risk source to safe ground, flagging segments that
-            cross flood-prone terrain.
+            Finds the fastest route from an at-risk area to safe ground, flagging
+            any flood-prone stretches.
           </p>
           <RunButton
             loading={loading}
@@ -636,8 +651,8 @@ export function ResilienceControls({
             />
           </div>
           <p className="note-box text-[11px] leading-relaxed">
-            Select the set of interventions that maximizes total risk reduction
-            without exceeding the budget.
+            Picks the mix of interventions that cuts the most risk for your
+            budget.
           </p>
           <RunButton
             loading={loading}
@@ -649,9 +664,8 @@ export function ResilienceControls({
 
       {state.tool === "ahp" && (
         <p className="note-box text-[11px] leading-relaxed">
-          The Analytic Hierarchy Process derives defensible weights for the 11
-          flood-susceptibility factors from a pairwise-comparison matrix, with a
-          consistency check. The default weights are shown in the results panel.
+          Recommended, consistency-checked weights for the 11 flood factors —
+          shown in the results panel.
         </p>
       )}
     </div>

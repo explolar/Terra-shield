@@ -48,8 +48,7 @@ export function ClimateTimeseries({ layer }: { layer: LayerResponse }) {
   if (!data.length) {
     return (
       <p className="text-xs text-ink-subtle">
-        Time series available on the demo path; live projections return the map
-        delta only.
+        Yearly trajectory shows in demo mode; live runs return the map delta.
       </p>
     );
   }
@@ -107,7 +106,7 @@ export function FloodClassChart({ layer }: { layer: LayerResponse }) {
   if (!classPct) {
     return (
       <p className="text-xs text-ink-subtle">
-        Class distribution available on the demo path.
+        Class distribution shows in demo mode.
       </p>
     );
   }
@@ -529,7 +528,7 @@ export function GroundwaterTrendChart({
   if (!series.length) {
     return (
       <p className="text-xs text-ink-subtle">
-        Per-year series available in demo mode.
+        Yearly history shows in demo mode.
       </p>
     );
   }

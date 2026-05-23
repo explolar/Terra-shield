@@ -91,7 +91,7 @@ function AhpCard({ layer }: { layer: LayerResponse }) {
     <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
       <div className="mb-2.5 flex items-center gap-2">
         <Sigma size={15} className="text-brand-cyan" />
-        <span className="text-xs font-semibold text-ink">AHP consistency</span>
+        <span className="text-xs font-semibold text-ink">Factor weights</span>
         {ahp && (
           <span
             className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -128,8 +128,7 @@ function AhpCard({ layer }: { layer: LayerResponse }) {
       )}
 
       <p className="mt-2.5 text-[10px] leading-relaxed text-ink-subtle">
-        Analytic Hierarchy Process (Saaty, 1980), 11 factors
-        {ahp ? ` · λmax = ${ahp.lambda_max.toFixed(3)}` : ""}
+        AHP-weighted, consistency-checked · 11 factors
       </p>
     </div>
   );
@@ -154,7 +153,7 @@ function FactorLayers({
     return (
       <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
         <Layers size={12} className="mt-0.5 shrink-0" />
-        Per-factor layers available in live (Earth Engine) mode.
+        Per-factor layers show in live mode.
       </p>
     );
   }
@@ -276,7 +275,7 @@ function ReliabilityCard({ layer }: { layer: LayerResponse }) {
       <div className="mb-2 flex items-center gap-2">
         <ShieldCheck size={15} className="text-emerald-600" />
         <span className="text-xs font-semibold text-emerald-700">
-          Reliability (AOA)
+          Reliability
         </span>
       </div>
       {(hasApplicable || hasConfidence) && (
@@ -456,8 +455,7 @@ export function MultiYearPanel({
         {error}
       </div>
     );
-  if (loading)
-    return <Spinner label="Reconstructing multi-year flood trend…" />;
+  if (loading) return <Spinner label="Computing flood trend…" />;
   if (!data) return null;
 
   const { series, stats } = data;
@@ -517,8 +515,8 @@ export function MultiYearPanel({
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
         {data.source === "demo"
-          ? "Deterministic demo series. The same AOI always returns the same trend."
-          : "Reconstructed live from the JRC Global Surface Water history."}
+          ? "Demo data — the same area always returns the same trend."
+          : "Computed live from satellite surface-water history."}
       </p>
     </div>
   );
@@ -543,9 +541,9 @@ export function MlRiskPanel({
   if (loading)
     return (
       <div className="space-y-2">
-        <Spinner label="Training classifier…" />
+        <Spinner label="Training model…" />
         <p className="text-center text-[11px] text-ink-subtle">
-          training on Earth Engine samples…
+          Computing on Earth Engine — large areas can take 20–40s.
         </p>
       </div>
     );
@@ -560,7 +558,7 @@ export function MlRiskPanel({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
-          <Brain size={15} className="text-brand-cyan" /> ML flood-risk
+          <Brain size={15} className="text-brand-cyan" /> Flood-risk model
         </span>
         <SourceBadge source={data.source} />
       </div>
@@ -609,7 +607,7 @@ export function MlRiskPanel({
       <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
         <SectionLabel>
           <span className="inline-flex items-center gap-1.5">
-            <BarChart3 size={12} /> Feature importance
+            <BarChart3 size={12} /> What drives the risk
           </span>
         </SectionLabel>
         <MlFeatureImportanceChart
@@ -617,8 +615,7 @@ export function MlRiskPanel({
           topFactor={data.top_factor}
         />
         <p className="mt-2.5 text-[10px] leading-relaxed text-ink-subtle">
-          SHAP feature importance (Lundberg &amp; Lee, 2017) · label = JRC
-          historical-flood occurrence · {data.validation}
+          Feature importance from the trained model.
         </p>
       </div>
 
@@ -680,7 +677,7 @@ export function ExtremesPanel({
         {error}
       </div>
     );
-  if (loading) return <Spinner label="Computing climate extremes…" />;
+  if (loading) return <Spinner label="Computing extremes…" />;
   if (!data) return null;
 
   return (
@@ -753,7 +750,7 @@ export function CriticalityPanel({
         {error}
       </div>
     );
-  if (loading) return <Spinner label="Ranking road criticality…" />;
+  if (loading) return <Spinner label="Ranking roads…" />;
   if (!data) return null;
 
   const { stats, legend } = data;
@@ -812,9 +809,8 @@ export function CriticalityPanel({
 
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
-        {stats.method
-          ? `Ranked by ${stats.method}.`
-          : "Ranked by edge betweenness centrality (NetworkX)."}
+        Network-criticality scoring — the roads whose failure would most fragment
+        the network.
       </p>
     </div>
   );
@@ -876,7 +872,7 @@ export function WeatherPanel({
         {error}
       </div>
     );
-  if (loading) return <Spinner label="Fetching live forecast…" />;
+  if (loading) return <Spinner label="Fetching forecast…" />;
   if (!data) return null;
 
   const s = data.summary;
@@ -967,8 +963,7 @@ export function WeatherPanel({
 
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
-        Live short-range forecast from {data.provider}. Heavy-rain days exceed
-        the daily-precipitation threshold; the flood-watch reflects the wettest
+        Live forecast from {data.provider}. The flood watch reflects the wettest
         days ahead.
       </p>
     </div>
@@ -1017,8 +1012,7 @@ export function GroundwaterPanel({
         {error}
       </div>
     );
-  if (loading)
-    return <Spinner label="Analyzing terrestrial water storage…" />;
+  if (loading) return <Spinner label="Analyzing water storage…" />;
   if (!data) return null;
 
   const { stats, series, legend } = data;
@@ -1104,7 +1098,7 @@ export function GroundwaterPanel({
       ) : (
         <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
           <Info size={12} className="mt-0.5 shrink-0" />
-          Per-year series available in demo mode.
+          Yearly history shows in demo mode.
         </p>
       )}
 
@@ -1118,12 +1112,9 @@ export function GroundwaterPanel({
 
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
-        {stats.dataset
-          ? `${stats.dataset}. `
-          : ""}
         {data.source === "demo"
-          ? "Deterministic demo series. The same AOI always returns the same trend."
-          : "Computed live from NASA GRACE terrestrial water storage."}
+          ? "Demo data — the same area always returns the same trend."
+          : "Computed live from satellite gravimetry."}
       </p>
     </div>
   );
@@ -1297,8 +1288,8 @@ export function ResultPanel({
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
         {layer.source === "demo"
-          ? "Deterministic demo surface (no Earth Engine credentials configured). The same AOI always returns the same result."
-          : "Computed live from Google Earth Engine over your area of interest."}
+          ? "Demo data — the same area always returns the same result."
+          : "Computed live from satellite data over your area."}
       </p>
     </div>
   );

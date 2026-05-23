@@ -124,9 +124,7 @@ export function ShelterResult({ data }: { data: ShelterResponse }) {
         (shown as cyan markers on the map).
       </div>
 
-      <MethodCaption>
-        Maximal Covering Location (greedy ≥ 63% of optimal).
-      </MethodCaption>
+      <MethodCaption>Optimal shelter coverage.</MethodCaption>
     </div>
   );
 }
@@ -179,7 +177,7 @@ export function EvacuationResult({ data }: { data: EvacuationResponse }) {
         </>
       )}
 
-      <MethodCaption>Dijkstra shortest path.</MethodCaption>
+      <MethodCaption>Shortest safe route.</MethodCaption>
     </div>
   );
 }
@@ -228,7 +226,7 @@ export function MitigationResult({ data }: { data: MitigationResponse }) {
         )}
       </div>
 
-      <MethodCaption>0/1 knapsack (Bellman DP).</MethodCaption>
+      <MethodCaption>Best risk reduction within budget.</MethodCaption>
     </div>
   );
 }
@@ -247,7 +245,7 @@ export function AhpResult({ data }: { data: AhpResponse }) {
 
   return (
     <div className="space-y-5">
-      <ResultHeader icon={ShieldCheck} title="Defensible weights (AHP)" />
+      <ResultHeader icon={ShieldCheck} title="Recommended factor weights" />
 
       <div className="rounded-xl border border-line bg-surface-subtle p-4">
         <div className="space-y-2.5">
@@ -286,7 +284,7 @@ export function AhpResult({ data }: { data: AhpResponse }) {
         </span>
       </div>
 
-      <MethodCaption>Analytic Hierarchy Process (Saaty, 1980).</MethodCaption>
+      <MethodCaption>AHP-weighted, consistency-checked.</MethodCaption>
     </div>
   );
 }
