@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from terrashield_geo import aoi as geo_aoi
 from terrashield_geo import climate, drought, flood, gee, infra, ml_flood, optimize
 
 from . import llm
@@ -84,6 +85,7 @@ CITATIONS = {
         "WorldPop (2018), Bondarenko et al., population modelling",
         "Freeman (1977), betweenness centrality, Sociometry",
     ],
+    "weather": ["Open-Meteo (2023), open-data weather forecast API (CC-BY 4.0)"],
     "optimize": [
         "Saaty (1980), Analytic Hierarchy Process",
         "Church & ReVelle (1974), Maximal Covering Location Problem, Papers Reg. Sci.",
@@ -159,6 +161,20 @@ def _tool_infra_criticality(aoi, e):
     return infra.road_criticality(aoi)
 
 
+def _tool_weather(aoi, e):
+    from . import weather
+
+    norm = geo_aoi.normalize(aoi)
+    lon, lat = norm["centroid"]
+    r = weather.forecast(lat, lon, e.get("days", 7))
+    return {
+        "module": "weather", "product": "forecast", "source": r["source"],
+        "tile_url": None, "grid": None, "legend": [],
+        "stats": r["summary"], "daily": r["daily"], "provider": r["provider"],
+        "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+    }
+
+
 def _tool_opt_shelters(aoi, e):
     r = optimize.shelters_for_aoi(aoi, p=e.get("count", 3), radius_km=e.get("radius_km", 8.0))
     return {
@@ -218,6 +234,8 @@ TOOLS: dict[str, dict[str, Any]] = {
                          "desc": "ETCCDI extreme-climate indices (heatwave/heavy-rain)"},
     "infra_criticality": {"fn": _tool_infra_criticality, "module": "infra",
                           "desc": "Road-network criticality (edge betweenness)"},
+    "weather_forecast": {"fn": _tool_weather, "module": "weather",
+                         "desc": "Short-range weather & rainfall forecast (Open-Meteo)"},
     "optimize_shelters": {"fn": _tool_opt_shelters, "module": "optimize",
                           "desc": "Relief-shelter siting (Maximal Covering Location)"},
     "optimize_evacuation": {"fn": _tool_opt_evacuation, "module": "optimize",
@@ -306,6 +324,9 @@ def _choose_tool(q: str) -> str:
         return "optimize_evacuation"
     if has("budget", "mitigation", "invest", "spend", "prioriti"):
         return "optimize_mitigation"
+    if has("forecast", "weather", "next week", "next few days", "rain tomorrow",
+            "upcoming rain", "rainfall forecast", "will it rain"):
+        return "weather_forecast"
     # Road criticality must beat flood_road (both mention "road").
     if has("critical road", "road criticality", "most critical", "network critical",
             "betweenness", "important road", "key road"):
@@ -403,6 +424,13 @@ def _template_answer(tool: str, entities: dict, result: dict) -> str:
             f"Evacuation routing for {place}: a {s.get('route_km')} km path over "
             f"{s.get('segments')} segments reaches a safe exit via Dijkstra{warn}. Based on {src}."
         )
+    if tool == "weather_forecast":
+        return (
+            f"{result.get('days', 7)}-day forecast for {place}: {s.get('total_precip_mm')} mm "
+            f"total rain over {s.get('heavy_rain_days')} heavy-rain day(s); peak "
+            f"{s.get('peak_precip_mm')} mm on {s.get('peak_date')} — flood watch: "
+            f"{s.get('flood_watch')}. Source: Open-Meteo."
+        )
     if tool == "flood_multiyear":
         return (
             f"Multi-year flood extent for {place}: the trend is {s.get('trend')} "
@@ -443,7 +471,10 @@ def _template_answer(tool: str, entities: dict, result: dict) -> str:
 
 
 async def ask(question: str, aoi: dict | None = None) -> dict[str, Any]:
+    from ..core.sanitize import clean_question
+
     gee.init()
+    question = clean_question(question)  # guardrail: normalize + strip injection
     entities = _parse_entities(question)
     tool_name = _choose_tool(question)
     tool = TOOLS[tool_name]

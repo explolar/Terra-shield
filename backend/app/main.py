@@ -18,6 +18,7 @@ from .api.routes import (
     drought,
     earthdata,
     flood,
+    forecast,
     health,
     infra,
     optimize,
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
             {"name": "DroughtAI", "description": "SPI and vegetation-stress drought analytics."},
             {"name": "InfraRisk", "description": "Infrastructure & population exposure."},
             {"name": "ResilienceOR", "description": "Operations research: AHP, TOPSIS, shelter siting, evacuation routing, mitigation."},
+            {"name": "WeatherCast", "description": "Short-range weather & rainfall forecast (Open-Meteo)."},
             {"name": "GeoCopilot", "description": "Natural-language climate-risk assistant (Llama)."},
             {"name": "EarthData Engine", "description": "GEE status, AOI, datasets."},
             {"name": "system", "description": "Health & introspection."},
@@ -66,7 +68,8 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
 
     prefix = settings.api_prefix
-    for module in (health, earthdata, flood, climate, drought, infra, optimize, copilot):
+    for module in (health, earthdata, flood, climate, drought, infra, optimize,
+                   forecast, copilot):
         app.include_router(module.router, prefix=prefix)
 
     @app.get("/", tags=["system"])

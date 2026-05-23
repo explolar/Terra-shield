@@ -14,8 +14,11 @@ import logging
 import httpx
 
 from ..core.config import get_settings
+from ..core.sanitize import cap_output, clean_text
 
 log = logging.getLogger("terrashield.llm")
+
+MAX_TOKENS = 400  # guardrail: keep copilot answers short and bounded
 
 
 def provider() -> str:
@@ -33,17 +36,29 @@ def is_enabled() -> bool:
 
 
 async def complete(system: str, user: str, temperature: float = 0.2) -> str | None:
-    """Return an LLM completion, or None if no provider is configured/available."""
+    """Return a cleaned, bounded LLM completion, or None if unavailable.
+
+    Guardrails: inputs are length-capped, the response is token- and length-capped
+    and stripped of code fences, and one retry covers transient failures. The
+    caller (copilot) always has a deterministic fallback if this returns None.
+    """
     s = get_settings()
     p = s.llm_provider.lower()
-    try:
-        if p == "groq":
-            return await _groq(s, system, user, temperature)
-        if p == "ollama":
-            return await _ollama(s, system, user, temperature)
-    except Exception as exc:
-        log.warning("LLM call failed (%s): %s", p, exc)
-        return None
+    system = clean_text(system, 2000)
+    user = clean_text(user, 4000)
+
+    for attempt in range(2):
+        try:
+            if p == "groq":
+                out = await _groq(s, system, user, temperature)
+            elif p == "ollama":
+                out = await _ollama(s, system, user, temperature)
+            else:
+                return None
+            return cap_output(out)
+        except Exception as exc:
+            # Never log the API key; log only the exception type/message.
+            log.warning("LLM call failed (%s, attempt %d): %s", p, attempt + 1, exc)
     return None
 
 
@@ -58,6 +73,7 @@ async def _groq(s, system: str, user: str, temperature: float) -> str | None:
             json={
                 "model": s.llm_model,
                 "temperature": temperature,
+                "max_tokens": MAX_TOKENS,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -77,7 +93,7 @@ async def _ollama(s, system: str, user: str, temperature: float) -> str | None:
             json={
                 "model": model,
                 "stream": False,
-                "options": {"temperature": temperature},
+                "options": {"temperature": temperature, "num_predict": MAX_TOKENS},
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},

@@ -96,6 +96,12 @@ class CriticalityRequest(BaseModel):
     aoi: AOI
 
 
+# ---- WeatherCast (Open-Meteo) -------------------------------------------- #
+class ForecastRequest(BaseModel):
+    aoi: AOI
+    days: int = Field(default=7, ge=1, le=16)
+
+
 # ---- GeoCopilot ----------------------------------------------------------- #
 class CopilotRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)
