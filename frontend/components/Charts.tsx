@@ -1,0 +1,213 @@
+"use client";
+
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
+  Cell,
+  ReferenceLine,
+} from "recharts";
+import type { LayerResponse } from "@/lib/types";
+import { HAZARD_RAMP, rampColor } from "@/lib/colors";
+
+const axisStyle = { fill: "#64748b", fontSize: 11 };
+const gridStroke = "#1e293b";
+
+function ChartTooltip({ active, payload, label, unit }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-line bg-space-900/95 px-3 py-2 text-xs shadow-panel backdrop-blur">
+      <div className="font-semibold text-white">{label}</div>
+      <div className="text-slate-300">
+        {payload[0].value}
+        {unit ? ` ${unit}` : ""}
+      </div>
+    </div>
+  );
+}
+
+export function ClimateTimeseries({ layer }: { layer: LayerResponse }) {
+  const data = layer.timeseries ?? [];
+  if (!data.length) {
+    return (
+      <p className="text-xs text-slate-500">
+        Time series available on the demo path; live projections return the map
+        delta only.
+      </p>
+    );
+  }
+  return (
+    <div className="h-48 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#22d3ee" />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis
+            dataKey="year"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+            interval="preserveStartEnd"
+            minTickGap={28}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={44}
+            domain={["auto", "auto"]}
+          />
+          <Tooltip content={<ChartTooltip unit={layer.unit} />} />
+          {typeof layer.baseline === "number" && (
+            <ReferenceLine
+              y={layer.baseline}
+              stroke="#475569"
+              strokeDasharray="4 4"
+              label={{ value: "baseline", fill: "#64748b", fontSize: 10, position: "insideTopLeft" }}
+            />
+          )}
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke="url(#lineGrad)"
+            strokeWidth={2.4}
+            dot={false}
+            activeDot={{ r: 4, fill: "#22d3ee" }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function FloodClassChart({ layer }: { layer: LayerResponse }) {
+  const classPct = layer.stats?.class_pct as Record<string, number> | undefined;
+  if (!classPct) {
+    return (
+      <p className="text-xs text-slate-500">
+        Class distribution available on the demo path.
+      </p>
+    );
+  }
+  const labels = Object.keys(classPct);
+  const data = labels.map((label, i) => ({
+    name: label.replace("Very ", "V."),
+    full: label,
+    value: classPct[label],
+    color: rampColor(HAZARD_RAMP, labels.length > 1 ? i / (labels.length - 1) : 0),
+  }));
+  return (
+    <div className="h-44 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            unit="%"
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(148,163,184,0.06)" }}
+            content={({ active, payload }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-space-900/95 px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-white">
+                    {payload[0].payload.full}
+                  </div>
+                  <div className="text-slate-300">{payload[0].value}% of area</div>
+                </div>
+              ) : null
+            }
+          />
+          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={d.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// A horizontal SPI gauge from -2.5 to +2.5.
+export function SpiGauge({ layer }: { layer: LayerResponse }) {
+  const spi = layer.stats?.mean_spi as number | undefined;
+  if (typeof spi !== "number") return null;
+  const min = -2.5;
+  const max = 2.5;
+  const pct = ((spi - min) / (max - min)) * 100;
+  const clamped = Math.max(0, Math.min(100, pct));
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-xs text-slate-500">SPI scale</span>
+        <span className="gradient-text text-2xl font-bold">{spi.toFixed(2)}</span>
+      </div>
+      <div className="relative h-3 w-full rounded-full ring-1 ring-white/10"
+        style={{
+          background:
+            "linear-gradient(90deg,#730000,#e60000,#ffaa00,#fcd37f,#ffffff,#a6d96a,#1a9641)",
+        }}
+      >
+        <div
+          className="absolute top-1/2 h-5 w-1.5 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+          style={{ left: `${clamped}%` }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-600">
+        <span>-2.5 dry</span>
+        <span>0</span>
+        <span>+2.5 wet</span>
+      </div>
+    </div>
+  );
+}
+
+// A simple radial-style VCI / generic 0-1 meter.
+export function PercentMeter({
+  value,
+  label,
+  color = "#22d3ee",
+}: {
+  value: number; // 0..1
+  label: string;
+  color?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value * 100));
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-xs text-slate-500">{label}</span>
+        <span className="text-lg font-semibold text-white">
+          {value.toFixed(2)}
+        </span>
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-space-850 ring-1 ring-white/5">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  );
+}

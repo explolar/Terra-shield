@@ -1,0 +1,34 @@
+# TerraShield AI — full stack, one command.
+#   docker compose -f infra/docker-compose.yml up --build
+# Runs in DEMO mode by default (no GEE creds needed). To go live, set
+# TERRASHIELD_GEE_PROJECT and mount a service-account key.
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      TERRASHIELD_ENV: production
+      TERRASHIELD_CORS_ORIGINS: http://localhost:3000
+      TERRASHIELD_GEE_PROJECT: ${TERRASHIELD_GEE_PROJECT:-}
+      TERRASHIELD_LLM_PROVIDER: ${TERRASHIELD_LLM_PROVIDER:-none}
+      TERRASHIELD_LLM_API_KEY: ${TERRASHIELD_LLM_API_KEY:-}
+      TERRASHIELD_LLM_MODEL: ${TERRASHIELD_LLM_MODEL:-llama-3.3-70b-versatile}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/frontend.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000/api/v1
+    depends_on:
+      - backend

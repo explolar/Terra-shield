@@ -1,0 +1,48 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-error.log*
+
+# ---- Secrets / credentials ----
+.env
+.env.*
+!.env.example
+*.json.key
+service-account*.json
+gee-credentials*.json
+.gee/
+
+# ---- Data / outputs (keep repo light) ----
+data/raw/
+data/cache/
+outputs/
+*.tif
+*.tiff
+*.nc
+*.geojson.large
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,86 @@
+### TerraShield AI — API examples (VS Code REST Client / IntelliJ HTTP)
+@base = http://localhost:8000/api/v1
+
+### Health + EarthData Engine status
+GET {{base}}/health
+
+###
+GET {{base}}/earthdata/status
+
+### Validate an AOI (Satara, Maharashtra)
+POST {{base}}/earthdata/aoi/validate
+Content-Type: application/json
+
+{ "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] }
+
+### FloodAI — susceptibility under extreme rainfall
+POST {{base}}/flood/susceptibility
+Content-Type: application/json
+
+{
+  "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] },
+  "rainfall_scenario": "extreme"
+}
+
+### FloodAI — susceptibility with AHP-derived weights (pairwise matrix)
+POST {{base}}/flood/susceptibility
+Content-Type: application/json
+
+{
+  "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] },
+  "ahp_matrix": [
+    [1, 2, 2, 3, 4, 5],
+    [0.5, 1, 1, 2, 3, 4],
+    [0.5, 1, 1, 2, 3, 4],
+    [0.333, 0.5, 0.5, 1, 2, 3],
+    [0.25, 0.333, 0.333, 0.5, 1, 2],
+    [0.2, 0.25, 0.25, 0.333, 0.5, 1]
+  ]
+}
+
+### ClimateLens — SSP585 precipitation, 2050s
+POST {{base}}/climate/projection
+Content-Type: application/json
+
+{ "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] },
+  "scenario": "ssp585", "variable": "pr", "horizon": "2050s" }
+
+### DroughtAI — 3-month SPI
+POST {{base}}/drought/spi
+Content-Type: application/json
+
+{ "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] }, "scale_months": 3 }
+
+### ResilienceOR — relief-shelter siting (MCLP)
+POST {{base}}/optimize/shelters
+Content-Type: application/json
+
+{ "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] },
+  "num_shelters": 4, "radius_km": 8 }
+
+### ResilienceOR — evacuation routing (Dijkstra)
+POST {{base}}/optimize/evacuation
+Content-Type: application/json
+
+{ "aoi": { "type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0] } }
+
+### ResilienceOR — mitigation knapsack
+POST {{base}}/optimize/mitigation
+Content-Type: application/json
+
+{ "budget": 200 }
+
+### ResilienceOR — default AHP flood weights
+GET {{base}}/optimize/ahp/default
+
+### GeoCopilot — natural-language query (resolves any Indian district)
+POST {{base}}/copilot/ask
+Content-Type: application/json
+
+{ "question": "How will flood risk in Satara change under SSP585 by 2050?" }
+
+###
+POST {{base}}/copilot/ask
+Content-Type: application/json
+
+{ "question": "Where should we place 4 relief shelters in Kolhapur?" }
