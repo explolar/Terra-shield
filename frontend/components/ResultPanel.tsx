@@ -18,6 +18,8 @@ import {
   Sprout,
   Building2,
   Eye,
+  Thermometer,
+  Network,
 } from "lucide-react";
 import type {
   FloodFactor,
@@ -26,6 +28,8 @@ import type {
   MultiYearResponse,
   MlRiskResponse,
   TrendDirection,
+  ClimateExtremesResponse,
+  InfraCriticalityResponse,
 } from "@/lib/types";
 import { FLOOD_FACTORS, FLOOD_FACTOR_LABELS } from "@/lib/types";
 import {
@@ -43,6 +47,7 @@ import {
   PercentMeter,
   MultiYearChart,
   MlFeatureImportanceChart,
+  ExtremesChart,
 } from "@/components/Charts";
 
 // Susceptibility class labels (1-5) for the mean_class headline.
@@ -610,6 +615,196 @@ export function MlRiskPanel({
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
         {data.explainability}
+      </p>
+    </div>
+  );
+}
+
+// ---- ClimateLens extremes panel (ETCCDI indices; no map tile) ----
+// Heat / precipitation indices where an increase is adverse → positive delta
+// is shown in red; a decrease in cyan. CDD (consecutive dry days) increasing is
+// also adverse, so all four ETCCDI indices treat positive delta as "worse".
+function ExtremeIndexCard({ idx }: { idx: ClimateExtremesResponse["indices"][number] }) {
+  const up = idx.delta >= 0;
+  const chip = up
+    ? "bg-rose-500/10 text-rose-700"
+    : "bg-cyan-500/10 text-cyan-700";
+  const sign = idx.delta > 0 ? "+" : "";
+  const pctSign = idx.pct_change > 0 ? "+" : "";
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-ink">{idx.label}</div>
+          <div className="mt-1 text-[11px] text-ink-muted">
+            <span className="font-medium text-ink-subtle">{idx.baseline}</span>
+            <span className="mx-1 text-ink-faint">→</span>
+            <span className="font-semibold text-ink">{idx.projected}</span>{" "}
+            {idx.unit}
+          </div>
+        </div>
+        <span
+          className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${chip}`}
+        >
+          {sign}
+          {idx.delta} ({pctSign}
+          {idx.pct_change}%)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function ExtremesPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: ClimateExtremesResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading) return <Spinner label="Computing climate extremes…" />;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Thermometer size={15} className="text-brand-cyan" /> Climate extremes
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-subtle">
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink-muted">
+          {data.scenario.toUpperCase()}
+        </span>
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink-muted">
+          {data.horizon}
+        </span>
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink-muted">
+          {data.model}
+        </span>
+      </div>
+
+      {/* one card per index */}
+      <div className="space-y-2.5">
+        {data.indices.map((idx) => (
+          <ExtremeIndexCard key={idx.key} idx={idx} />
+        ))}
+      </div>
+
+      {/* grouped baseline vs projected bar chart */}
+      {data.indices.length > 0 && (
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <BarChart3 size={12} /> Baseline vs projected
+            </span>
+          </SectionLabel>
+          <ExtremesChart indices={data.indices} />
+        </div>
+      )}
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        {data.reference}
+      </p>
+    </div>
+  );
+}
+
+// ---- InfraRisk road-criticality panel (LineString grid rendered on the map) ----
+const TIER_COLORS: Record<string, string> = {
+  critical: "#b91c1c",
+  important: "#f59e0b",
+  normal: "#64748b",
+};
+
+export function CriticalityPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: InfraCriticalityResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading) return <Spinner label="Ranking road criticality…" />;
+  if (!data) return null;
+
+  const { stats, legend } = data;
+  const segs = stats.segments ?? 0;
+  const crit = stats.critical_segments ?? 0;
+  const critPct = segs > 0 ? Math.round((crit / segs) * 1000) / 10 : 0;
+  const legendItems =
+    legend && legend.length
+      ? legend
+      : [
+          { label: "Critical", color: TIER_COLORS.critical },
+          { label: "Important", color: TIER_COLORS.important },
+          { label: "Normal", color: TIER_COLORS.normal },
+        ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Network size={15} className="text-brand-cyan" /> Road criticality
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      {/* headline stat cards */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="text-[11px] text-ink-subtle">Critical segments</div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {crit.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-ink-muted">
+              of {segs.toLocaleString()}
+            </span>
+          </div>
+          <div className="mt-0.5 text-[11px] text-ink-muted">
+            {critPct}% of network
+          </div>
+        </div>
+        {typeof stats.area_km2 === "number" && (
+          <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+            <div className="text-[11px] text-ink-subtle">AOI area</div>
+            <div className="mt-1 text-lg font-semibold tabular-nums text-ink">
+              {stats.area_km2.toLocaleString()} km²
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* tier legend */}
+      <div>
+        <SectionLabel>Legend</SectionLabel>
+        <Legend legend={legendItems} />
+      </div>
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        {stats.method
+          ? `Ranked by ${stats.method}.`
+          : "Ranked by edge betweenness centrality (NetworkX)."}
       </p>
     </div>
   );

@@ -23,6 +23,7 @@ import type {
 
 import {
   climateProjection,
+  climateExtremes,
   droughtSpi,
   droughtVegetation,
   floodMlRisk,
@@ -33,6 +34,7 @@ import {
   getAhpDefault,
   getStatus,
   infraExposure,
+  infraCriticality,
 } from "@/lib/api";
 import type {
   AOI,
@@ -43,6 +45,8 @@ import type {
   ModuleId,
   MultiYearResponse,
   MlRiskResponse,
+  ClimateExtremesResponse,
+  InfraCriticalityResponse,
   PointFeatureCollection,
   LineFeatureCollection,
 } from "@/lib/types";
@@ -102,12 +106,16 @@ export default function Dashboard() {
     scenario: "ssp585",
     variable: "pr",
     horizon: "2050s",
+    product: "projection",
   });
   const [drought, setDrought] = useState<DroughtControlState>({
     product: "spi",
     scale_months: 3,
   });
-  const [infra, setInfra] = useState<InfraControlState>({ hazard: "flood" });
+  const [infra, setInfra] = useState<InfraControlState>({
+    hazard: "flood",
+    product: "exposure",
+  });
 
   // --- AHP default weights (from GET /optimize/ahp/default) ---
   const [ahpDefaults, setAhpDefaults] = useState<FloodWeights | null>(null);
@@ -121,6 +129,13 @@ export default function Dashboard() {
   // --- FloodAI panel-only products (no map tile) ---
   const [multiYear, setMultiYear] = useState<MultiYearResponse | null>(null);
   const [mlRisk, setMlRisk] = useState<MlRiskResponse | null>(null);
+
+  // --- ClimateLens extremes (panel-only) + InfraRisk criticality (map grid) ---
+  const [extremes, setExtremes] = useState<ClimateExtremesResponse | null>(
+    null,
+  );
+  const [criticality, setCriticality] =
+    useState<InfraCriticalityResponse | null>(null);
 
   // --- layer + request state ---
   const [layer, setLayer] = useState<LayerResponse | null>(null);
@@ -176,6 +191,8 @@ export default function Dashboard() {
     if (moduleId === "flood" && flood.product === "multiyear") {
       setLayer(null);
       setMlRisk(null);
+      setExtremes(null);
+      setCriticality(null);
       try {
         const res = await floodMultiyear(aoi);
         setMultiYear(res);
@@ -190,6 +207,8 @@ export default function Dashboard() {
     if (moduleId === "flood" && flood.product === "ml_risk") {
       setLayer(null);
       setMultiYear(null);
+      setExtremes(null);
+      setCriticality(null);
       try {
         const res = await floodMlRisk(aoi, flood.ml_model);
         setMlRisk(res);
@@ -202,9 +221,52 @@ export default function Dashboard() {
       return;
     }
 
+    // ClimateLens extremes: ETCCDI indices, panel-only (no map tile).
+    if (moduleId === "climate" && climate.product === "extremes") {
+      setLayer(null);
+      setMultiYear(null);
+      setMlRisk(null);
+      setCriticality(null);
+      try {
+        const res = await climateExtremes(
+          aoi,
+          climate.scenario,
+          climate.horizon,
+          "ensemble",
+        );
+        setExtremes(res);
+      } catch (e: any) {
+        setError(e?.detail || e?.message || "Extremes analysis failed.");
+        setExtremes(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // InfraRisk criticality: road-network LineString grid colored by tier.
+    if (moduleId === "infra" && infra.product === "criticality") {
+      setLayer(null);
+      setMultiYear(null);
+      setMlRisk(null);
+      setExtremes(null);
+      try {
+        const res = await infraCriticality(aoi);
+        setCriticality(res);
+      } catch (e: any) {
+        setError(e?.detail || e?.message || "Criticality analysis failed.");
+        setCriticality(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     // Tile / grid based products clear any panel-only results.
     setMultiYear(null);
     setMlRisk(null);
+    setExtremes(null);
+    setCriticality(null);
     try {
       let res: LayerResponse;
       if (moduleId === "flood") {
@@ -258,6 +320,8 @@ export default function Dashboard() {
     setSeverityOn(false);
     setMultiYear(null);
     setMlRisk(null);
+    setExtremes(null);
+    setCriticality(null);
   }
 
   function selectLocation(loc: LocationPreset) {
@@ -346,6 +410,8 @@ export default function Dashboard() {
         onToggleFactor={toggleFactor}
         multiYear={multiYear}
         mlRisk={mlRisk}
+        extremes={extremes}
+        criticality={criticality}
         severityOn={severityOn}
         onToggleSeverity={toggleSeverity}
       />
@@ -381,6 +447,7 @@ export default function Dashboard() {
             onDrawComplete={onDrawComplete}
             shelters={shelters}
             route={route}
+            criticality={criticality}
             onSelectState={selectStateFromMap}
             factorUrls={layer?.factor_urls ?? null}
             activeFactors={activeFactors}

@@ -25,6 +25,8 @@ import type {
   MultiYearResponse,
   MlRiskResponse,
   MlModel,
+  ClimateExtremesResponse,
+  InfraCriticalityResponse,
 } from "./types";
 
 export const API_BASE =
@@ -126,6 +128,20 @@ export const climateProjection = (body: {
   model: string;
 }) => post<LayerResponse>("/climate/projection", body);
 
+// ETCCDI climate-extremes indices (Rx1day, R95p, CDD, hot_days).
+export const climateExtremes = (
+  aoi: AOI,
+  scenario: ClimateScenario,
+  horizon: ClimateHorizon,
+  model?: string,
+) =>
+  post<ClimateExtremesResponse>("/climate/extremes", {
+    aoi,
+    scenario,
+    horizon,
+    ...(model ? { model } : {}),
+  });
+
 // ---- DroughtAI ----
 export const droughtSpi = (body: { aoi: AOI; scale_months: SpiScale }) =>
   post<LayerResponse>("/drought/spi", body);
@@ -136,6 +152,10 @@ export const droughtVegetation = (body: { aoi: AOI }) =>
 // ---- InfraRisk ----
 export const infraExposure = (body: { aoi: AOI; hazard: Hazard }) =>
   post<LayerResponse>("/infra/exposure", body);
+
+// Road-network criticality via edge betweenness centrality (NetworkX).
+export const infraCriticality = (aoi: AOI) =>
+  post<InfraCriticalityResponse>("/infra/criticality", { aoi });
 
 // ---- GeoCopilot ----
 export const getCopilotTools = () =>

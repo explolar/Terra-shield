@@ -16,6 +16,8 @@ import {
   ResultPanel,
   MultiYearPanel,
   MlRiskPanel,
+  ExtremesPanel,
+  CriticalityPanel,
 } from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
@@ -26,6 +28,8 @@ import type {
   ModuleId,
   MultiYearResponse,
   MlRiskResponse,
+  ClimateExtremesResponse,
+  InfraCriticalityResponse,
 } from "@/lib/types";
 
 export interface RightPanelProps {
@@ -50,6 +54,9 @@ export interface RightPanelProps {
   // FloodAI multi-year + ML-risk products (no map tile; rendered as panels)
   multiYear?: MultiYearResponse | null;
   mlRisk?: MlRiskResponse | null;
+  // ClimateLens extremes (no map tile) + InfraRisk criticality (map grid)
+  extremes?: ClimateExtremesResponse | null;
+  criticality?: InfraCriticalityResponse | null;
   // SAR severity overlay toggle
   severityOn?: boolean;
   onToggleSeverity?: () => void;
@@ -75,6 +82,8 @@ export function RightPanel(props: RightPanelProps) {
     onToggleFactor,
     multiYear,
     mlRisk,
+    extremes,
+    criticality,
     severityOn,
     onToggleSeverity,
   } = props;
@@ -84,6 +93,10 @@ export function RightPanel(props: RightPanelProps) {
   const floodProduct = flood.product;
   const isMultiYear = moduleId === "flood" && floodProduct === "multiyear";
   const isMlRisk = moduleId === "flood" && floodProduct === "ml_risk";
+  // ClimateLens extremes + InfraRisk criticality render dedicated panels.
+  const isExtremes = moduleId === "climate" && climate.product === "extremes";
+  const isCriticality =
+    moduleId === "infra" && infra.product === "criticality";
 
   return (
     <div className="flex h-full flex-col">
@@ -182,6 +195,48 @@ export function RightPanel(props: RightPanelProps) {
                 icon={BarChart3}
                 title="No model yet"
                 message="Pick a model and train it to see metrics and feature importance."
+              />
+            )
+          ) : isExtremes ? (
+            extremes || loading || error ? (
+              <motion.div
+                key={`extremes-${extremes?.scenario ?? "pending"}-${extremes?.horizon ?? ""}-${extremes?.source ?? ""}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <ExtremesPanel
+                  data={extremes ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No extremes yet"
+                message="Pick a scenario and horizon, then run to see ETCCDI climate-extremes indices."
+              />
+            )
+          ) : isCriticality ? (
+            criticality || loading || error ? (
+              <motion.div
+                key={`criticality-${criticality?.source ?? "pending"}-${criticality?.stats?.segments ?? 0}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CriticalityPanel
+                  data={criticality ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No criticality yet"
+                message="Run criticality to rank road segments by edge betweenness centrality."
               />
             )
           ) : (

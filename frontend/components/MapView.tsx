@@ -22,6 +22,7 @@ import type {
   LayerResponse,
   PointFeatureCollection,
   LineFeatureCollection,
+  InfraCriticalityResponse,
 } from "@/lib/types";
 import {
   productValueConfig,
@@ -40,6 +41,8 @@ interface MapViewProps {
   // ResilienceOR overlays
   shelters?: PointFeatureCollection | null;
   route?: LineFeatureCollection | null;
+  // InfraRisk road-criticality LineString grid (colored by tier)
+  criticality?: InfraCriticalityResponse | null;
   // FloodAI per-factor XYZ tile layers (live mode only) + which are toggled on
   factorUrls?: Partial<Record<FloodFactor, string>> | null;
   activeFactors?: FloodFactor[];
@@ -275,6 +278,7 @@ export default function MapView({
   onDrawComplete,
   shelters,
   route,
+  criticality,
   factorUrls,
   activeFactors,
   severityUrl,
@@ -385,6 +389,55 @@ export default function MapView({
     lineCap: "round",
   };
 
+  // ----- InfraRisk road-criticality (LineString grid colored by tier) -----
+  const TIER_COLORS: Record<string, string> = {
+    critical: "#b91c1c",
+    important: "#f59e0b",
+    normal: "#64748b",
+  };
+
+  function critColor(props: Record<string, any>): string {
+    const tier = props?.tier as string | undefined;
+    if (tier && TIER_COLORS[tier]) return TIER_COLORS[tier];
+    // Fall back to a threshold on the 0..1 criticality score.
+    const c = props?.criticality;
+    if (typeof c === "number") {
+      if (c >= 0.66) return TIER_COLORS.critical;
+      if (c >= 0.33) return TIER_COLORS.important;
+    }
+    return TIER_COLORS.normal;
+  }
+
+  function critStyle(feature?: Feature): PathOptions {
+    const props = feature?.properties || {};
+    const tier = props?.tier;
+    const isCrit = tier === "critical";
+    const isImp = tier === "important";
+    return {
+      color: critColor(props),
+      weight: isCrit ? 4 : isImp ? 3 : 2,
+      opacity: isCrit ? 0.95 : 0.8,
+      lineCap: "round",
+    };
+  }
+
+  function onEachCrit(feature: Feature, leafletLayer: LeafletLayer) {
+    const props = feature.properties || {};
+    const c = props.criticality;
+    const tier = props.tier ?? "normal";
+    const html = `<div style="font-size:12px"><b>${String(tier).replace(
+      /^\w/,
+      (m: string) => m.toUpperCase(),
+    )} segment</b><br/>criticality ${
+      typeof c === "number" ? c.toFixed(3) : "—"
+    }</div>`;
+    leafletLayer.bindTooltip(html, { sticky: true, opacity: 0.95 });
+  }
+
+  const critKey = criticality?.grid
+    ? `crit-${JSON.stringify(bbox)}-${criticality.grid.features.length}`
+    : "crit-none";
+
   return (
     <MapContainer
       center={[(bbox[1] + bbox[3]) / 2, (bbox[0] + bbox[2]) / 2]}
@@ -444,6 +497,16 @@ export default function MapView({
           key={`route-${route.features.length}-${JSON.stringify(bbox)}`}
           data={route as any}
           style={routeStyle as any}
+        />
+      ) : null}
+
+      {/* InfraRisk — road-criticality LineStrings colored by tier */}
+      {criticality?.grid?.features?.length ? (
+        <GeoJSON
+          key={critKey}
+          data={criticality.grid as any}
+          style={critStyle as any}
+          onEachFeature={onEachCrit as any}
         />
       ) : null}
 

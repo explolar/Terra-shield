@@ -14,11 +14,13 @@ import {
   Bar,
   Cell,
   ReferenceLine,
+  Legend as RechartsLegend,
 } from "recharts";
 import type {
   LayerResponse,
   MultiYearPoint,
   MlFeatureImportance,
+  ClimateExtremeIndex,
 } from "@/lib/types";
 import { FLOOD_FACTOR_LABELS, type FloodFactor } from "@/lib/types";
 import { HAZARD_RAMP, rampColor } from "@/lib/colors";
@@ -357,6 +359,88 @@ export function MlFeatureImportanceChart({
               <Cell key={i} fill={d.isTop ? "#10b981" : "#7dd3fc"} />
             ))}
           </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---- ClimateLens extremes: grouped horizontal baseline vs projected bars ----
+export function ExtremesChart({ indices }: { indices: ClimateExtremeIndex[] }) {
+  if (!indices.length) {
+    return (
+      <p className="text-xs text-ink-subtle">No extremes indices available.</p>
+    );
+  }
+  const rows = indices.map((d) => ({
+    label: d.label,
+    unit: d.unit,
+    baseline: d.baseline,
+    projected: d.projected,
+  }));
+  // Height scales with the number of indices (one grouped pair per index).
+  const height = Math.max(180, rows.length * 46 + 28);
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={rows}
+          layout="vertical"
+          margin={{ top: 4, right: 14, left: 4, bottom: 4 }}
+          barCategoryGap={10}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+          <XAxis
+            type="number"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tick={{ ...axisStyle, fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            width={70}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(148,163,184,0.12)" }}
+            content={({ active, payload }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">
+                    {payload[0].payload.label}
+                  </div>
+                  {payload.map((p: any) => (
+                    <div key={p.dataKey} className="text-ink-muted">
+                      {p.dataKey === "baseline" ? "Baseline" : "Projected"}:{" "}
+                      {p.value} {payload[0].payload.unit}
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            }
+          />
+          <RechartsLegend
+            wrapperStyle={{ fontSize: 11 }}
+            iconType="circle"
+            iconSize={8}
+          />
+          <Bar
+            dataKey="baseline"
+            name="Baseline"
+            fill="#94a3b8"
+            radius={[0, 3, 3, 0]}
+            barSize={9}
+          />
+          <Bar
+            dataKey="projected"
+            name="Projected"
+            fill="#ef4444"
+            radius={[0, 3, 3, 0]}
+            barSize={9}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

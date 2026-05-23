@@ -41,10 +41,14 @@ export interface FloodControlState {
   weightsTouched?: boolean;
 }
 
+// ClimateLens products: the existing delta projection + the ETCCDI extremes.
+export type ClimateProduct = "projection" | "extremes";
+
 export interface ClimateControlState {
   scenario: ClimateScenario;
   variable: ClimateVariable;
   horizon: ClimateHorizon;
+  product: ClimateProduct;
 }
 
 export interface DroughtControlState {
@@ -52,8 +56,12 @@ export interface DroughtControlState {
   scale_months: SpiScale;
 }
 
+// InfraRisk products: hazard exposure + road-network criticality.
+export type InfraProduct = "exposure" | "criticality";
+
 export interface InfraControlState {
   hazard: Hazard;
+  product: InfraProduct;
 }
 
 export type ResilienceTool =
@@ -278,8 +286,20 @@ export function ClimateControls({
   loading: boolean;
   onRun: () => void;
 }) {
+  const isExtremes = state.product === "extremes";
   return (
     <div className="space-y-5">
+      <div>
+        <SectionLabel>Product</SectionLabel>
+        <Toggle
+          value={state.product}
+          onChange={(v) => setState({ ...state, product: v })}
+          options={[
+            { value: "projection", label: "Projection" },
+            { value: "extremes", label: "Extremes" },
+          ]}
+        />
+      </div>
       <div>
         <SectionLabel>Emission scenario</SectionLabel>
         <Toggle
@@ -291,18 +311,21 @@ export function ClimateControls({
           ]}
         />
       </div>
-      <div>
-        <SectionLabel>Variable</SectionLabel>
-        <Toggle
-          value={state.variable}
-          onChange={(v) => setState({ ...state, variable: v })}
-          options={[
-            { value: "pr", label: "Rainfall" },
-            { value: "tas", label: "Mean temp" },
-            { value: "tasmax", label: "Max temp" },
-          ]}
-        />
-      </div>
+      {/* Variable applies only to the delta projection product. */}
+      {!isExtremes && (
+        <div>
+          <SectionLabel>Variable</SectionLabel>
+          <Toggle
+            value={state.variable}
+            onChange={(v) => setState({ ...state, variable: v })}
+            options={[
+              { value: "pr", label: "Rainfall" },
+              { value: "tas", label: "Mean temp" },
+              { value: "tasmax", label: "Max temp" },
+            ]}
+          />
+        </div>
+      )}
       <div>
         <SectionLabel>Horizon</SectionLabel>
         <Toggle
@@ -316,9 +339,15 @@ export function ClimateControls({
         />
       </div>
       <p className="note-box text-[11px] leading-relaxed">
-        NASA NEX-GDDP-CMIP6 ensemble, 0.25° downscaled, baseline 1995–2014.
+        {isExtremes
+          ? "ETCCDI climate-extremes indices from the NASA NEX-GDDP-CMIP6 ensemble (0.25° downscaled), baseline 1995–2014."
+          : "NASA NEX-GDDP-CMIP6 ensemble, 0.25° downscaled, baseline 1995–2014."}
       </p>
-      <RunButton loading={loading} onClick={onRun} label="Run projection" />
+      <RunButton
+        loading={loading}
+        onClick={onRun}
+        label={isExtremes ? "Run extremes" : "Run projection"}
+      />
     </div>
   );
 }
@@ -385,24 +414,45 @@ export function InfraControls({
   loading: boolean;
   onRun: () => void;
 }) {
+  const isCriticality = state.product === "criticality";
   return (
     <div className="space-y-5">
       <div>
-        <SectionLabel>Hazard</SectionLabel>
+        <SectionLabel>Product</SectionLabel>
         <Toggle
-          value={state.hazard}
-          onChange={(v) => setState({ ...state, hazard: v })}
+          value={state.product}
+          onChange={(v) => setState({ ...state, product: v })}
           options={[
-            { value: "flood", label: "Flood" },
-            { value: "drought", label: "Drought" },
+            { value: "exposure", label: "Exposure" },
+            { value: "criticality", label: "Criticality" },
           ]}
         />
       </div>
+
+      {!isCriticality && (
+        <div>
+          <SectionLabel>Hazard</SectionLabel>
+          <Toggle
+            value={state.hazard}
+            onChange={(v) => setState({ ...state, hazard: v })}
+            options={[
+              { value: "flood", label: "Flood" },
+              { value: "drought", label: "Drought" },
+            ]}
+          />
+        </div>
+      )}
+
       <p className="note-box text-[11px] leading-relaxed">
-        Overlays the hazard footprint on WorldPop population and ESA WorldCover
-        built-up land to quantify exposure.
+        {isCriticality
+          ? "Ranks road segments by edge betweenness centrality (NetworkX) — the most-traversed links whose failure would most fragment the network."
+          : "Overlays the hazard footprint on WorldPop population and ESA WorldCover built-up land to quantify exposure."}
       </p>
-      <RunButton loading={loading} onClick={onRun} label="Compute exposure" />
+      <RunButton
+        loading={loading}
+        onClick={onRun}
+        label={isCriticality ? "Rank criticality" : "Compute exposure"}
+      />
     </div>
   );
 }

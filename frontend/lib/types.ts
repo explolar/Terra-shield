@@ -284,9 +284,51 @@ export interface ProjectionRequest {
   model: string;
 }
 
+// ---- ClimateLens: ETCCDI climate-extremes indices ----
+// POST /climate/extremes -> { aoi, scenario, horizon, model? }
+export interface ClimateExtremeIndex {
+  key: string; // Rx1day | R95p | CDD | hot_days
+  label: string;
+  unit: string;
+  baseline: number;
+  projected: number;
+  delta: number;
+  pct_change: number;
+}
+
+export interface ClimateExtremesResponse {
+  product: "extremes";
+  source: Source;
+  scenario: ClimateScenario;
+  horizon: ClimateHorizon;
+  model: string;
+  reference: string;
+  indices: ClimateExtremeIndex[];
+}
+
 export type SpiScale = 1 | 3 | 6 | 12;
 
 export type Hazard = "flood" | "drought";
+
+// ---- InfraRisk: road-network criticality (edge betweenness centrality) ----
+// POST /infra/criticality -> { aoi }
+export type CriticalityTier = "critical" | "important" | "normal";
+
+export interface InfraCriticalityStats {
+  segments: number;
+  critical_segments: number;
+  method: string;
+  area_km2: number;
+  [key: string]: any;
+}
+
+export interface InfraCriticalityResponse {
+  product: "road_criticality";
+  source: Source;
+  grid: LineFeatureCollection;
+  legend: LegendItem[];
+  stats: InfraCriticalityStats;
+}
 
 export type ModuleId =
   | "flood"
