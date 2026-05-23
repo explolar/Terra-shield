@@ -32,7 +32,9 @@ log = logging.getLogger("terrashield")
 async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level, json_logs=settings.is_prod)
-    mode = gee.init(settings.gee_project, settings.gee_sa_key)
+    # force=True so the configured project always applies, even if some import-time
+    # code triggered a lazy demo-init before startup.
+    mode = gee.init(settings.gee_project, settings.gee_sa_key, force=True)
     log.info("TerraShield backend starting — env=%s, EarthData Engine=%s", settings.env, mode)
     yield
     log.info("TerraShield backend shutting down")
