@@ -71,6 +71,13 @@ def test_climate_extremes_increase_under_warming():
     assert rx["projected"] >= rx["baseline"]     # heavier 1-day extremes
 
 
+def test_flood_multiyear():
+    r = flood.multiyear(AOI, years=[2019, 2020, 2021])
+    assert len(r["series"]) == 3
+    assert r["stats"]["trend"] in ("increasing", "decreasing", "stable")
+    assert all(s["flooded_km2"] >= 0 for s in r["series"])
+
+
 def test_infra_road_criticality():
     r = infra.road_criticality(AOI)
     assert r["stats"]["segments"] > 0

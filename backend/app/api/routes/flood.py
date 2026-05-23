@@ -8,7 +8,12 @@ from terrashield_geo import flood
 
 from ...core.cache import cached
 from ...schemas.common import LayerResponse
-from ...schemas.modules import RoadRiskRequest, SarExtentRequest, SusceptibilityRequest
+from ...schemas.modules import (
+    MultiYearRequest,
+    RoadRiskRequest,
+    SarExtentRequest,
+    SusceptibilityRequest,
+)
 from ..deps import rate_limit
 
 router = APIRouter(prefix="/flood", tags=["FloodAI"], dependencies=[Depends(rate_limit)])
@@ -39,6 +44,18 @@ def sar_extent(req: SarExtentRequest):
             "flood.sar", payload,
             lambda: flood.sar_extent(req.aoi.to_engine(), req.pre_start, req.pre_end,
                                      req.post_start, req.post_end),
+        )
+    except aoi_mod.AOIError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/multiyear")
+def multiyear(req: MultiYearRequest):
+    payload = req.model_dump()
+    try:
+        return cached(
+            "flood.multiyear", payload,
+            lambda: flood.multiyear(req.aoi.to_engine(), req.years),
         )
     except aoi_mod.AOIError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

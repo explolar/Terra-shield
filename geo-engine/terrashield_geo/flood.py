@@ -372,6 +372,94 @@ def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cove
 
 
 # --------------------------------------------------------------------------- #
+# Multi-year flood comparison
+# --------------------------------------------------------------------------- #
+def multiyear(aoi: dict[str, Any], years: list[int] | None = None,
+              monsoon: tuple[str, str] = ("07-01", "09-30")) -> dict[str, Any]:
+    """Annual peak flood extent across several years (SAR change detection) +
+    a linear trend. Lets a planner see whether flooding is intensifying."""
+    norm = aoi_mod.normalize(aoi)
+    years = years or [2019, 2020, 2021, 2022, 2023, 2024]
+    if gee.is_live():
+        try:
+            return _multiyear_live(norm, years, monsoon)
+        except Exception as exc:  # pragma: no cover
+            log.warning("flood.multiyear live failed, demo fallback: %s", exc)
+    return _multiyear_demo(norm, years)
+
+
+def _multiyear_demo(norm, years) -> dict[str, Any]:
+    import numpy as np
+
+    bbox = norm["bbox"]
+    rng = np.random.default_rng(abs(hash(tuple(round(b, 3) for b in bbox))) % (2**32))
+    base = float(norm["area_km2"]) * rng.uniform(0.02, 0.06)
+    series = []
+    for i, y in enumerate(years):
+        val = max(0.0, base * (1 + 0.06 * i) * rng.uniform(0.6, 1.4))  # mild upward trend + noise
+        series.append({"year": y, "flooded_km2": round(val, 2)})
+    return _multiyear_result(norm, series, "demo")
+
+
+def _multiyear_live(norm, years, monsoon) -> dict[str, Any]:  # pragma: no cover
+    ee = gee.get_ee()
+    geom = aoi_mod.to_ee_geometry(norm)
+    px = ee.Image.pixelArea()
+    dem = ee.Image("USGS/SRTMGL1_003").select("elevation").clip(geom)
+    slope_ok = ee.Terrain.slope(dem).lt(8)
+    jrc = ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
+    perm_water = jrc.select("seasonality").gte(10)
+    jrc_gate = jrc.select("occurrence").gte(5)
+    elev_ok = dem.lte(ee.Number(dem.reduceRegion(
+        ee.Reducer.percentile([40]), geom, 100, maxPixels=1e9, bestEffort=True).values().get(0)))
+
+    def s1(start, end):
+        return (ee.ImageCollection("COPERNICUS/S1_GRD").filterBounds(geom).filterDate(start, end)
+                .filter(ee.Filter.eq("instrumentMode", "IW"))
+                .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
+                .select("VV").median().focalMedian(30, "circle", "meters").clip(geom))
+
+    series = []
+    for y in years:
+        pre = s1(f"{y}-01-01", f"{y}-03-31")
+        post = s1(f"{y}-{monsoon[0]}", f"{y}-{monsoon[1]}")
+        flooded = (pre.subtract(post).gt(1.25).updateMask(slope_ok).where(perm_water, 0)
+                   .selfMask().updateMask(jrc_gate).updateMask(elev_ok))
+        flooded = flooded.updateMask(flooded.connectedPixelCount(200, False).gte(56))
+        v = flooded.multiply(px).reduceRegion(ee.Reducer.sum(), geom, 50,
+                                              maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        km2 = round((ee.Number(ee.Algorithms.If(v, v, 0)).getInfo() or 0) / 1e6, 2)
+        series.append({"year": y, "flooded_km2": km2})
+    return _multiyear_result(norm, series, "live")
+
+
+def _multiyear_result(norm, series, source) -> dict[str, Any]:
+    import numpy as np
+
+    xs = np.array([s["year"] for s in series], dtype=float)
+    ys = np.array([s["flooded_km2"] for s in series], dtype=float)
+    slope = float(np.polyfit(xs - xs.min(), ys, 1)[0]) if len(xs) > 1 else 0.0
+    peak = max(series, key=lambda s: s["flooded_km2"]) if series else {"year": None, "flooded_km2": 0}
+    return {
+        "module": "flood",
+        "product": "multiyear",
+        "source": source,
+        "tile_url": None,
+        "grid": None,
+        "legend": [{"label": "Flood extent / yr", "color": "#2171b5"}],
+        "series": series,
+        "stats": {
+            "trend_km2_per_year": round(slope, 3),
+            "trend": "increasing" if slope > 0.05 else "decreasing" if slope < -0.05 else "stable",
+            "peak_year": peak["year"],
+            "peak_km2": peak["flooded_km2"],
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Road / access disruption
 # --------------------------------------------------------------------------- #
 def road_risk(aoi: dict[str, Any], depth_threshold: float = 0.5) -> dict[str, Any]:

@@ -50,6 +50,11 @@ class RoadRiskRequest(BaseModel):
     depth_threshold: float = Field(default=0.5, ge=0, le=1)
 
 
+class MultiYearRequest(BaseModel):
+    aoi: AOI
+    years: list[int] | None = Field(default=None, description="Defaults to 2019-2024")
+
+
 # ---- ClimateLens ---------------------------------------------------------- #
 class ProjectionRequest(BaseModel):
     aoi: AOI
