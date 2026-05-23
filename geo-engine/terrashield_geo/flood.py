@@ -281,26 +281,67 @@ def _sar_extent_demo(norm, post_start, post_end) -> dict[str, Any]:
     }
 
 
+def _otsu_threshold(image, geom, scale, band):  # pragma: no cover
+    """Otsu's method (1979): the histogram split that maximizes between-class
+    variance — an adaptive, per-scene water/land threshold for SAR backscatter."""
+    ee = gee.get_ee()
+    hist = ee.Dictionary(
+        image.select(band).reduceRegion(
+            reducer=ee.Reducer.histogram(255, 2), geometry=geom, scale=scale,
+            maxPixels=1e9, bestEffort=True,
+        ).get(band)
+    )
+    counts = ee.Array(hist.get("histogram"))
+    means = ee.Array(hist.get("bucketMeans"))
+    size = means.length().get([0])
+    total = counts.reduce(ee.Reducer.sum(), [0]).get([0])
+    total_sum = means.multiply(counts).reduce(ee.Reducer.sum(), [0]).get([0])
+    grand_mean = total_sum.divide(total)
+    indices = ee.List.sequence(1, size)
+
+    def between_class_var(i):
+        i = ee.Number(i)
+        a_counts = counts.slice(0, 0, i)
+        a_count = a_counts.reduce(ee.Reducer.sum(), [0]).get([0])
+        a_means = means.slice(0, 0, i)
+        a_mean = a_means.multiply(a_counts).reduce(ee.Reducer.sum(), [0]).get([0]).divide(a_count)
+        b_count = total.subtract(a_count)
+        b_mean = total_sum.subtract(a_count.multiply(a_mean)).divide(b_count)
+        return a_count.multiply(a_mean.subtract(grand_mean).pow(2)).add(
+            b_count.multiply(b_mean.subtract(grand_mean).pow(2))
+        )
+
+    bss = ee.Array(indices.map(between_class_var))
+    return means.sort(bss).get([-1])
+
+
 def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cover
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
 
     def s1(start, end):
-        return (
+        col = (
             ee.ImageCollection("COPERNICUS/S1_GRD")
             .filterBounds(geom)
             .filterDate(start, end)
             .filter(ee.Filter.eq("instrumentMode", "IW"))
             .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
             .select("VV")
-            .median()
-            .clip(geom)
         )
+        # Median composite + a focal-median speckle filter (SAR is noisy).
+        return col.median().focalMedian(50, "circle", "meters").clip(geom)
 
     pre, post = s1(ps, pe), s1(qs, qe)
-    # Open water is dark in SAR; a drop in VV backscatter post-event = new water.
-    diff = post.subtract(pre)
-    flooded = diff.lt(-3).And(post.lt(-15)).selfMask().rename("flooded")
+
+    # Adaptive Otsu threshold on the post-event scene splits water (dark) from land.
+    thr = _otsu_threshold(post, geom, 30, "VV")
+    water_now = post.lt(thr)
+    new_water = water_now.And(post.subtract(pre).lt(-2))  # backscatter dropped => new flood
+
+    # Plausibility filters: only low-lying terrain (HAND), and exclude permanent water.
+    hand = ee.Image("MERIT/Hydro/v1_0_1").select("hnd")
+    perm_water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence").gt(50).unmask(0)
+    flooded = new_water.And(hand.lt(15)).And(perm_water.Not()).selfMask().rename("flooded")
 
     tile_url = tiles.image_tile_url(flooded, {"palette": ["#2171b5"], "min": 0, "max": 1})
     area = (
@@ -309,7 +350,8 @@ def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cove
                       maxPixels=1e9, bestEffort=True)
         .get("flooded")
     )
-    flooded_km2 = round(ee.Number(area).getInfo() / 1e6, 2)
+    flooded_km2 = round((ee.Number(area).getInfo() or 0) / 1e6, 2)
+    thr_db = round(ee.Number(thr).getInfo(), 2)
     return {
         "module": "flood",
         "product": "sar_extent",
@@ -320,6 +362,8 @@ def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cove
         "stats": {
             "flooded_area_km2": flooded_km2,
             "flooded_pct": round(flooded_km2 / max(norm["area_km2"], 1e-6) * 100, 1),
+            "otsu_threshold_db": thr_db,
+            "method": "Otsu (1979) + HAND + JRC permanent-water mask",
             "area_km2": norm["area_km2"],
         },
         "window": {"pre": [ps, pe], "post": [qs, qe]},
