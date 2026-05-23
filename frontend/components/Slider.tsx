@@ -7,6 +7,7 @@ export function Slider({
   min = 0,
   max = 1,
   step = 0.05,
+  exact = false,
 }: {
   label: string;
   value: number;
@@ -14,12 +15,18 @@ export function Slider({
   min?: number;
   max?: number;
   step?: number;
+  // When true, render the label verbatim (no auto-capitalization).
+  exact?: boolean;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs capitalize text-ink-muted">{label}</span>
+        <span
+          className={`text-xs text-ink-muted ${exact ? "" : "capitalize"}`}
+        >
+          {label}
+        </span>
         <span className="text-xs font-semibold tabular-nums text-ink">
           {value.toFixed(2)}
         </span>

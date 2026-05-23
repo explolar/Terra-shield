@@ -18,6 +18,7 @@ import type {
 } from "leaflet";
 import type { Feature, FeatureCollection } from "geojson";
 import type {
+  FloodFactor,
   LayerResponse,
   PointFeatureCollection,
   LineFeatureCollection,
@@ -39,6 +40,9 @@ interface MapViewProps {
   // ResilienceOR overlays
   shelters?: PointFeatureCollection | null;
   route?: LineFeatureCollection | null;
+  // FloodAI per-factor XYZ tile layers (live mode only) + which are toggled on
+  factorUrls?: Partial<Record<FloodFactor, string>> | null;
+  activeFactors?: FloodFactor[];
   // optional: click a state polygon to select it as AOI
   onSelectState?: (name: string, bbox: [number, number, number, number]) => void;
   // change this value to force the map to recompute its size (e.g. after a
@@ -268,6 +272,8 @@ export default function MapView({
   onDrawComplete,
   shelters,
   route,
+  factorUrls,
+  activeFactors,
   onSelectState,
   invalidateKey,
 }: MapViewProps) {
@@ -401,6 +407,15 @@ export default function MapView({
           opacity={0.8}
         />
       )}
+
+      {/* FloodAI per-factor tile overlays (live mode) — drawn above the
+          composite so a toggled factor is clearly visible */}
+      {factorUrls &&
+        (activeFactors ?? []).map((f) => {
+          const url = factorUrls[f];
+          if (!url) return null;
+          return <TileLayer key={`factor-${f}`} url={url} opacity={0.85} />;
+        })}
 
       {/* grid / vector layer */}
       {layer?.grid && (

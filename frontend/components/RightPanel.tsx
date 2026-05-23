@@ -15,7 +15,12 @@ import {
 import { ResultPanel } from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
-import type { LayerResponse, ModuleId } from "@/lib/types";
+import type {
+  FloodFactor,
+  FloodWeights,
+  LayerResponse,
+  ModuleId,
+} from "@/lib/types";
 
 export interface RightPanelProps {
   moduleId: Exclude<ModuleId, "copilot">;
@@ -32,6 +37,10 @@ export interface RightPanelProps {
   infra: InfraControlState;
   setInfra: (s: InfraControlState) => void;
   onRun: () => void;
+  // FloodAI 11-factor AHP extras
+  ahpDefaults?: FloodWeights | null;
+  activeFactors?: FloodFactor[];
+  onToggleFactor?: (f: FloodFactor) => void;
 }
 
 export function RightPanel(props: RightPanelProps) {
@@ -49,6 +58,9 @@ export function RightPanel(props: RightPanelProps) {
     infra,
     setInfra,
     onRun,
+    ahpDefaults,
+    activeFactors,
+    onToggleFactor,
   } = props;
   const meta = moduleMeta(moduleId);
 

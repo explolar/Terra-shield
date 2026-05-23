@@ -91,6 +91,7 @@ export const floodSusceptibility = (body: {
   aoi: AOI;
   weights?: Partial<FloodWeights>;
   rainfall_scenario: RainfallScenario;
+  ahp_matrix?: number[][];
 }) => post<LayerResponse>("/flood/susceptibility", body);
 
 export const floodSarExtent = (body: { aoi: AOI }) =>

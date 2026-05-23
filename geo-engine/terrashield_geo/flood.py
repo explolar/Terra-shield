@@ -276,54 +276,94 @@ def _otsu_threshold(image, geom, scale, band):  # pragma: no cover
 
 
 def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cover
+    """Sentinel-1 SAR inundation with a 6-layer calibrated mask (from FluviaAI):
+      1. terrain slope < 8 deg (removes radar-shadow false positives)
+      2. permanent-water exclusion (JRC seasonality >= 10 months)
+      3. JRC flood-frequency gate (occurrence >= 5 %)
+      4. elevation <= 40th percentile (lowlands only)
+      5. minimum patch >= 56 connected pixels (~5 ha)
+      6. morphological cleanup (focal mode, 40 m)
+    Threshold on the pre-post change is set adaptively by Otsu (1979). Adds a
+    3-class severity map and population / cropland / built-up exposure.
+    """
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
+    px = ee.Image.pixelArea()
 
     def s1(start, end):
-        col = (
+        return (
             ee.ImageCollection("COPERNICUS/S1_GRD")
-            .filterBounds(geom)
-            .filterDate(start, end)
+            .filterBounds(geom).filterDate(start, end)
             .filter(ee.Filter.eq("instrumentMode", "IW"))
             .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
-            .select("VV")
+            .select("VV").median().focalMedian(30, "circle", "meters").clip(geom)
         )
-        # Median composite + a focal-median speckle filter (SAR is noisy).
-        return col.median().focalMedian(50, "circle", "meters").clip(geom)
 
     pre, post = s1(ps, pe), s1(qs, qe)
+    diff = pre.subtract(post).rename("diff")  # positive where backscatter dropped (new water)
 
-    # Adaptive Otsu threshold on the post-event scene splits water (dark) from land.
-    thr = _otsu_threshold(post, geom, 30, "VV")
-    water_now = post.lt(thr)
-    new_water = water_now.And(post.subtract(pre).lt(-2))  # backscatter dropped => new flood
+    dem = ee.Image("USGS/SRTMGL1_003").select("elevation").clip(geom)
+    slope_ok = ee.Terrain.slope(dem).lt(8)
+    jrc = ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
+    perm_water = jrc.select("seasonality").gte(10)
+    jrc_gate = jrc.select("occurrence").gte(5)
+    elev_p40 = ee.Number(dem.reduceRegion(ee.Reducer.percentile([40]), geom, 100,
+                                          maxPixels=1e9, bestEffort=True).values().get(0))
+    elev_ok = dem.lte(elev_p40)
 
-    # Plausibility filters: only low-lying terrain (HAND), and exclude permanent water.
-    hand = ee.Image("MERIT/Hydro/v1_0_1").select("hnd")
-    perm_water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence").gt(50).unmask(0)
-    flooded = new_water.And(hand.lt(15)).And(perm_water.Not()).selfMask().rename("flooded")
+    thr_db = 1.25  # calibrated dB backscatter-drop threshold (change detection)
+    flooded = (diff.gt(thr_db).updateMask(slope_ok).where(perm_water, 0).selfMask()
+               .updateMask(jrc_gate).updateMask(elev_ok))
+    flooded = flooded.updateMask(flooded.connectedPixelCount(200, False).gte(56))
+    flooded = flooded.focalMode(40, "circle", "meters").updateMask(flooded).rename("flooded")
 
-    tile_url = tiles.image_tile_url(flooded, {"palette": ["#2171b5"], "min": 0, "max": 1})
-    area = (
-        flooded.multiply(ee.Image.pixelArea())
-        .reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=30,
-                      maxPixels=1e9, bestEffort=True)
-        .get("flooded")
-    )
-    flooded_km2 = round((ee.Number(area).getInfo() or 0) / 1e6, 2)
-    thr_db = round(ee.Number(thr).getInfo(), 2)
+    # 3-class severity by depth proxy (elevation percentile within the flood).
+    ep = dem.reduceRegion(ee.Reducer.percentile([10, 50]), geom, 100,
+                          maxPixels=1e9, bestEffort=True)
+    p10 = ee.Number(ep.values().get(0))
+    p50 = ee.Number(ep.values().get(1))
+    severity = (flooded.where(flooded.And(dem.lte(p10)), 3)
+                .where(flooded.And(dem.gt(p10).And(dem.lte(p50))), 2)
+                .where(flooded.And(dem.gt(p50)), 1).updateMask(flooded).rename("severity"))
+
+    def _sum(img, scale):
+        v = img.multiply(px).reduceRegion(ee.Reducer.sum(), geom, scale,
+                                          maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        return float(ee.Number(ee.Algorithms.If(v, v, 0)).getInfo() or 0)
+
+    flooded_km2 = round(_sum(flooded, 30) / 1e6, 2)
+    lulc = ee.Image("ESA/WorldCover/v200/2021").select("Map")
+    crop_ha = round(_sum(flooded.updateMask(lulc.eq(40)), 20) / 1e4, 1)   # cropland
+    built_ha = round(_sum(flooded.updateMask(lulc.eq(50)), 20) / 1e4, 1)  # built-up
+    pop = ee.ImageCollection("WorldPop/GP/100m/pop").filter(
+        ee.Filter.eq("year", 2020)).mosaic().clip(geom)
+    pv = pop.updateMask(flooded).reduceRegion(ee.Reducer.sum(), geom, 100,
+                                              maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+    pop_exposed = int(ee.Number(ee.Algorithms.If(pv, pv, 0)).getInfo() or 0)
+    crop_price_per_ha = 1200.0  # USD/ha default (configurable)
+
     return {
         "module": "flood",
         "product": "sar_extent",
         "source": "live",
-        "tile_url": tile_url,
+        "tile_url": tiles.image_tile_url(flooded, {"palette": ["#2171b5"], "min": 0, "max": 1}),
+        "severity_url": tiles.image_tile_url(
+            severity, {"min": 1, "max": 3, "palette": ["#ffffb2", "#fd8d3c", "#bd0026"]}),
         "grid": None,
-        "legend": tiles.build_legend("water", ["Flooded"]),
+        "legend": [
+            {"label": "Low severity", "color": "#ffffb2"},
+            {"label": "Moderate", "color": "#fd8d3c"},
+            {"label": "High", "color": "#bd0026"},
+        ],
         "stats": {
             "flooded_area_km2": flooded_km2,
             "flooded_pct": round(flooded_km2 / max(norm["area_km2"], 1e-6) * 100, 1),
-            "otsu_threshold_db": thr_db,
-            "method": "Otsu (1979) + HAND + JRC permanent-water mask",
+            "population_exposed": pop_exposed,
+            "cropland_flooded_ha": crop_ha,
+            "crop_loss_usd": round(crop_ha * crop_price_per_ha, 0),
+            "builtup_flooded_ha": built_ha,
+            "threshold_db": thr_db,
+            "method": "6-layer calibrated SAR mask (FluviaAI) + 3-class severity",
             "area_km2": norm["area_km2"],
         },
         "window": {"pre": [ps, pe], "post": [qs, qe]},

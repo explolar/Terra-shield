@@ -3,29 +3,31 @@
 import { Play, RotateCcw } from "lucide-react";
 import { Slider } from "@/components/Slider";
 import { Toggle, SectionLabel } from "@/components/ui";
-import type {
-  ClimateHorizon,
-  ClimateScenario,
-  ClimateVariable,
-  FloodWeights,
-  Hazard,
-  RainfallScenario,
-  SpiScale,
+import {
+  FLOOD_FACTORS,
+  FLOOD_FACTOR_LABELS,
+  type ClimateHorizon,
+  type ClimateScenario,
+  type ClimateVariable,
+  type FloodFactor,
+  type FloodWeights,
+  type Hazard,
+  type RainfallScenario,
+  type SpiScale,
 } from "@/lib/types";
 
-export const DEFAULT_WEIGHTS: FloodWeights = {
-  elevation: 0.25,
-  slope: 0.2,
-  twi: 0.2,
-  drainage: 0.15,
-  rainfall: 0.1,
-  landuse: 0.1,
-};
+// Equal-weight fallback used until the AHP defaults are fetched from the API.
+export const DEFAULT_WEIGHTS: FloodWeights = FLOOD_FACTORS.reduce(
+  (acc, k) => ({ ...acc, [k]: 1 / FLOOD_FACTORS.length }),
+  {} as FloodWeights,
+);
 
 export interface FloodControlState {
   weights: FloodWeights;
   rainfall_scenario: RainfallScenario;
   product: "susceptibility" | "sar" | "road";
+  // True once the user edits a slider; gates auto-seeding from AHP defaults.
+  weightsTouched?: boolean;
 }
 
 export interface ClimateControlState {
@@ -86,14 +88,28 @@ export function FloodControls({
   setState,
   loading,
   onRun,
+  ahpDefaults,
 }: {
   state: FloodControlState;
   setState: (s: FloodControlState) => void;
   loading: boolean;
   onRun: () => void;
+  // AHP default weights from GET /optimize/ahp/default (used by Reset).
+  ahpDefaults?: FloodWeights | null;
 }) {
-  const setWeight = (k: keyof FloodWeights, v: number) =>
-    setState({ ...state, weights: { ...state.weights, [k]: v } });
+  const setWeight = (k: FloodFactor, v: number) =>
+    setState({
+      ...state,
+      weights: { ...state.weights, [k]: v },
+      weightsTouched: true,
+    });
+
+  const resetWeights = () =>
+    setState({
+      ...state,
+      weights: { ...(ahpDefaults ?? DEFAULT_WEIGHTS) },
+      weightsTouched: true,
+    });
 
   return (
     <div className="space-y-5">
@@ -113,26 +129,29 @@ export function FloodControls({
       {state.product === "susceptibility" && (
         <>
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <SectionLabel>Factor weights (AHP)</SectionLabel>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <SectionLabel>Factor weights · 11-factor AHP</SectionLabel>
               <button
-                onClick={() =>
-                  setState({ ...state, weights: { ...DEFAULT_WEIGHTS } })
+                onClick={resetWeights}
+                disabled={!ahpDefaults}
+                title={
+                  ahpDefaults
+                    ? "Reset all sliders to the AHP default weights"
+                    : "Loading AHP defaults…"
                 }
-                className="inline-flex items-center gap-1 text-[11px] text-ink-subtle transition hover:text-brand-cyan"
+                className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-subtle transition hover:text-brand-cyan disabled:opacity-40 disabled:hover:text-ink-subtle"
               >
-                <RotateCcw size={11} /> Reset
+                <RotateCcw size={11} /> Reset to AHP weights
               </button>
             </div>
             <div className="space-y-3">
-              {(
-                Object.keys(state.weights) as (keyof FloodWeights)[]
-              ).map((k) => (
+              {FLOOD_FACTORS.map((k) => (
                 <Slider
                   key={k}
-                  label={k}
-                  value={state.weights[k]}
+                  label={FLOOD_FACTOR_LABELS[k]}
+                  value={state.weights[k] ?? 0}
                   onChange={(v) => setWeight(k, v)}
+                  exact
                 />
               ))}
             </div>
@@ -428,7 +447,7 @@ export function ResilienceControls({
 
       {state.tool === "ahp" && (
         <p className="note-box text-[11px] leading-relaxed">
-          The Analytic Hierarchy Process derives defensible weights for the six
+          The Analytic Hierarchy Process derives defensible weights for the 11
           flood-susceptibility factors from a pairwise-comparison matrix, with a
           consistency check. The default weights are shown in the results panel.
         </p>

@@ -30,9 +30,16 @@ export type GeoJSONFeature = {
 
 export interface Reliability {
   method: string;
-  validation: string;
-  applicable_pct: number;
-  mean_confidence: number;
+  validation?: string;
+  applicable_pct?: number;
+  mean_confidence?: number;
+}
+
+// AHP consistency summary returned by /flood/susceptibility (Saaty, 1980).
+export interface AhpSummary {
+  consistency_ratio: number;
+  consistent: boolean;
+  lambda_max: number;
 }
 
 export interface TimeseriesPoint {
@@ -54,6 +61,9 @@ export interface LayerResponse {
   reliability?: Reliability;
   weights?: Record<string, number>;
   rainfall_scenario?: string;
+  ahp?: AhpSummary;
+  // LIVE ONLY: one XYZ tile URL per factor for per-factor map overlays.
+  factor_urls?: Partial<Record<FloodFactor, string>>;
 
   // climate/projection extras
   scenario?: string;
@@ -134,19 +144,57 @@ export interface CopilotResponse {
 // ---- request bodies ----
 export type RainfallScenario = "normal" | "wet" | "extreme";
 
-export interface FloodWeights {
-  elevation: number;
-  slope: number;
-  twi: number;
-  drainage: number;
-  rainfall: number;
-  landuse: number;
-}
+// The 11 paper-grade AHP flood-susceptibility factors (Saaty, 1980).
+export type FloodFactor =
+  | "distance_to_river"
+  | "hand"
+  | "rainfall"
+  | "slope"
+  | "elevation"
+  | "drainage_density"
+  | "twi"
+  | "lulc"
+  | "soil"
+  | "ndvi"
+  | "curvature";
+
+// Ordered list of the 11 factor keys (canonical order).
+export const FLOOD_FACTORS: FloodFactor[] = [
+  "distance_to_river",
+  "hand",
+  "rainfall",
+  "slope",
+  "elevation",
+  "drainage_density",
+  "twi",
+  "lulc",
+  "soil",
+  "ndvi",
+  "curvature",
+];
+
+// Human-readable labels for each factor.
+export const FLOOD_FACTOR_LABELS: Record<FloodFactor, string> = {
+  distance_to_river: "Distance to River",
+  hand: "HAND",
+  rainfall: "Rainfall",
+  slope: "Slope",
+  elevation: "Elevation",
+  drainage_density: "Drainage Density",
+  twi: "TWI",
+  lulc: "LULC",
+  soil: "Soil Texture",
+  ndvi: "NDVI",
+  curvature: "Curvature",
+};
+
+export type FloodWeights = Record<FloodFactor, number>;
 
 export interface SusceptibilityRequest {
   aoi: AOI;
   weights?: Partial<FloodWeights>;
   rainfall_scenario: RainfallScenario;
+  ahp_matrix?: number[][];
 }
 
 export type ClimateScenario = "ssp245" | "ssp585";
@@ -238,9 +286,10 @@ export interface MitigationResponse {
 }
 
 export interface AhpResponse {
-  labels: Record<string, string> | string[];
+  labels?: Record<string, string> | string[];
   weights: Record<string, number>;
   consistency_ratio: number;
   consistent: boolean;
   lambda_max: number;
+  n_factors?: number;
 }

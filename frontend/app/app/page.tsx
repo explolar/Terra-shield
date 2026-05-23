@@ -28,17 +28,21 @@ import {
   floodRoadRisk,
   floodSarExtent,
   floodSusceptibility,
+  getAhpDefault,
   getStatus,
   infraExposure,
 } from "@/lib/api";
 import type {
   AOI,
   EarthdataStatus,
+  FloodFactor,
+  FloodWeights,
   LayerResponse,
   ModuleId,
   PointFeatureCollection,
   LineFeatureCollection,
 } from "@/lib/types";
+import { FLOOD_FACTORS } from "@/lib/types";
 import {
   DEFAULT_LOCATION,
   bboxToAOI,
@@ -100,6 +104,12 @@ export default function Dashboard() {
   });
   const [infra, setInfra] = useState<InfraControlState>({ hazard: "flood" });
 
+  // --- AHP default weights (from GET /optimize/ahp/default) ---
+  const [ahpDefaults, setAhpDefaults] = useState<FloodWeights | null>(null);
+
+  // --- per-factor map overlays (live mode only) ---
+  const [activeFactors, setActiveFactors] = useState<FloodFactor[]>([]);
+
   // --- layer + request state ---
   const [layer, setLayer] = useState<LayerResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -117,10 +127,36 @@ export default function Dashboard() {
     };
   }, []);
 
+  // fetch AHP default weights once and seed the flood sliders with them.
+  useEffect(() => {
+    let alive = true;
+    getAhpDefault()
+      .then((r) => {
+        if (!alive) return;
+        const w = FLOOD_FACTORS.reduce((acc, k) => {
+          acc[k] = typeof r.weights?.[k] === "number" ? r.weights[k] : 0;
+          return acc;
+        }, {} as FloodWeights);
+        setAhpDefaults(w);
+        // Only seed the sliders if the user hasn't touched them yet.
+        setFlood((prev) =>
+          prev.weightsTouched ? prev : { ...prev, weights: { ...w } },
+        );
+      })
+      .catch(() => {
+        // Non-fatal: fall back to the equal-weight DEFAULT_WEIGHTS already set.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // run analysis for the active module
   const runAnalysis = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Per-factor overlays belong to a specific result; reset on each run.
+    setActiveFactors([]);
     try {
       let res: LayerResponse;
       if (moduleId === "flood") {
@@ -170,6 +206,7 @@ export default function Dashboard() {
   function clearOrOverlays() {
     setShelters(null);
     setRoute(null);
+    setActiveFactors([]);
   }
 
   function selectLocation(loc: LocationPreset) {
@@ -208,6 +245,12 @@ export default function Dashboard() {
     clearOrOverlays();
   }
 
+  function toggleFactor(f: FloodFactor) {
+    setActiveFactors((prev) =>
+      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f],
+    );
+  }
+
   function switchModule(id: ModuleId) {
     setModuleId(id);
     // On mobile, surface the panel when a module is selected.
@@ -243,6 +286,9 @@ export default function Dashboard() {
         infra={infra}
         setInfra={setInfra}
         onRun={runAnalysis}
+        ahpDefaults={ahpDefaults}
+        activeFactors={activeFactors}
+        onToggleFactor={toggleFactor}
       />
     );
 
@@ -277,6 +323,8 @@ export default function Dashboard() {
             shelters={shelters}
             route={route}
             onSelectState={selectStateFromMap}
+            factorUrls={layer?.factor_urls ?? null}
+            activeFactors={activeFactors}
             invalidateKey={`${sheetOpen}-${moduleId}`}
           />
 
