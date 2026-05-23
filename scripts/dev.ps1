@@ -9,10 +9,10 @@ $root = Split-Path -Parent $PSScriptRoot
 
 Write-Host "TerraShield AI - starting backend + frontend..." -ForegroundColor Cyan
 
-# Backend
+# Backend  (python -m uvicorn works even when the Scripts dir isn't on PATH)
 Start-Process powershell -ArgumentList @(
   "-NoExit", "-Command",
-  "cd '$root\backend'; uvicorn app.main:app --reload --port 8000"
+  "cd '$root\backend'; python -m uvicorn app.main:app --reload --port 8000"
 )
 
 # Frontend

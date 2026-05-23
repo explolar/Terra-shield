@@ -6,7 +6,7 @@ install:        ## install geo-engine + backend (editable) and frontend deps
 	cd frontend && npm install
 
 backend:        ## run the FastAPI backend (http://localhost:8000/docs)
-	cd backend && uvicorn app.main:app --reload --port 8000
+	cd backend && python -m uvicorn app.main:app --reload --port 8000
 
 frontend:       ## run the Next.js frontend (http://localhost:3000)
 	cd frontend && npm run dev

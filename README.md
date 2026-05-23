@@ -100,8 +100,9 @@ terra-shield/
 cd backend
 python -m venv .venv && . .venv/Scripts/activate      # Windows: .venv\Scripts\Activate.ps1
 pip install -e ../geo-engine -e .[dev]
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 # → http://localhost:8000/docs   (interactive API)
+# (use `python -m uvicorn` — the bare `uvicorn` command needs the Scripts dir on PATH)
 
 # 2) Frontend  (second terminal)
 cd frontend

@@ -8,8 +8,9 @@ package (the EarthData Engine).
 
 ```bash
 pip install -e ../geo-engine -e .[dev]
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 # Interactive API docs -> http://localhost:8000/docs
+# Tip: use `python -m uvicorn` (the bare `uvicorn` needs the pip Scripts dir on PATH).
 ```
 
 Runs in **demo mode** without Earth Engine credentials. Configure via env
