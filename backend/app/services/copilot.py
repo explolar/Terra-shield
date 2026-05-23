@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from terrashield_geo import climate, drought, flood, gee, infra, optimize
+from terrashield_geo import climate, drought, flood, gee, infra, ml_flood, optimize
 
 from . import llm
 
@@ -108,6 +108,25 @@ def _tool_flood_road(aoi, e):
     return flood.road_risk(aoi)
 
 
+def _tool_flood_multiyear(aoi, e):
+    r = flood.multiyear(aoi)
+    return {
+        "module": "flood", "product": "multiyear", "source": r["source"],
+        "tile_url": None, "grid": None, "legend": r.get("legend", []),
+        "stats": r["stats"], "series": r["series"], "aoi": r.get("aoi", {}),
+    }
+
+
+def _tool_flood_ml(aoi, e):
+    r = ml_flood.flood_risk_ml(aoi, model=e.get("ml_model", "gbm"))
+    return {
+        "module": "flood", "product": "ml_risk", "source": r["source"],
+        "tile_url": None, "grid": None, "legend": [],
+        "stats": r["metrics"], "model": r["model"], "top_factor": r["top_factor"],
+        "feature_importance": r["feature_importance"], "aoi": r.get("aoi", {}),
+    }
+
+
 def _tool_climate(aoi, e):
     return climate.projection(aoi, e.get("ssp", "ssp585"), e.get("variable", "pr"),
                               e.get("horizon", "2050s"))
@@ -183,6 +202,10 @@ TOOLS: dict[str, dict[str, Any]] = {
                   "desc": "Sentinel-1 SAR inundation extent"},
     "flood_road": {"fn": _tool_flood_road, "module": "flood",
                    "desc": "Road / access disruption from flooding"},
+    "flood_multiyear": {"fn": _tool_flood_multiyear, "module": "flood",
+                        "desc": "Multi-year flood extent trend (2019-2024)"},
+    "flood_ml": {"fn": _tool_flood_ml, "module": "flood",
+                 "desc": "ML flood-risk classifier (GBM/XGBoost) + SHAP"},
     "climate_projection": {"fn": _tool_climate, "module": "climate",
                            "desc": "CMIP6/SSP future-climate projection"},
     "drought_spi": {"fn": _tool_drought_spi, "module": "drought",
@@ -258,6 +281,12 @@ def _parse_entities(q: str) -> dict[str, Any]:
     if mb:
         e["budget"] = float(mb.group(1).replace(",", ""))
 
+    # ML model choice
+    if "xgboost" in ql or "xgb" in ql:
+        e["ml_model"] = "xgboost"
+    elif "random forest" in ql or "random-forest" in ql:
+        e["ml_model"] = "random_forest"
+
     # place — resolve against the full national gazetteer (longest match wins)
     place = _resolve_place(ql)
     if place:
@@ -285,6 +314,12 @@ def _choose_tool(q: str) -> str:
         return "flood_road"
     if has("inundation", "sar", "satellite flood", "flood extent", "submerged"):
         return "flood_sar"
+    if has("machine learning", "ml model", "ml risk", "train a model", "classifier",
+            "shap", "xgboost", "gradient boost", "random forest", "predict flood"):
+        return "flood_ml"
+    if has("multi-year", "multiyear", "over the years", "yearly flood", "flood trend",
+            "trend over", "flood history", "past years", "annual flood", "year on year"):
+        return "flood_multiyear"
     if has("heatwave", "heat wave", "hot days", "extreme index", "extreme indices",
             "climate extreme", "rx1day", "consecutive dry", "extreme heat",
             "rainfall indices", "precipitation indices", "extreme precipitation"):
@@ -367,6 +402,18 @@ def _template_answer(tool: str, entities: dict, result: dict) -> str:
         return (
             f"Evacuation routing for {place}: a {s.get('route_km')} km path over "
             f"{s.get('segments')} segments reaches a safe exit via Dijkstra{warn}. Based on {src}."
+        )
+    if tool == "flood_multiyear":
+        return (
+            f"Multi-year flood extent for {place}: the trend is {s.get('trend')} "
+            f"({s.get('trend_km2_per_year')} km²/yr), peaking at {s.get('peak_km2')} km² "
+            f"in {s.get('peak_year')} (SAR change detection, 2019-2024). Based on {src}."
+        )
+    if tool == "flood_ml":
+        return (
+            f"ML flood-risk model for {place} ({result.get('model')}): cross-validated "
+            f"accuracy {s.get('cv_accuracy')}, AUC {s.get('cv_auc')} on {s.get('n_samples')} "
+            f"samples; the most important factor is {result.get('top_factor')} (SHAP). Based on {src}."
         )
     if tool == "climate_extremes":
         idx = {i["key"]: i for i in result.get("indices", [])}
