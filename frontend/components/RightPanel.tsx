@@ -7,10 +7,12 @@ import {
   DroughtControls,
   FloodControls,
   InfraControls,
+  WeatherControls,
   type ClimateControlState,
   type DroughtControlState,
   type FloodControlState,
   type InfraControlState,
+  type WeatherControlState,
 } from "@/components/Controls";
 import {
   ResultPanel,
@@ -18,11 +20,13 @@ import {
   MlRiskPanel,
   ExtremesPanel,
   CriticalityPanel,
+  WeatherPanel,
 } from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 import type {
   FloodFactor,
+  FloodWatch,
   FloodWeights,
   LayerResponse,
   ModuleId,
@@ -30,6 +34,7 @@ import type {
   MlRiskResponse,
   ClimateExtremesResponse,
   InfraCriticalityResponse,
+  WeatherForecastResponse,
 } from "@/lib/types";
 
 export interface RightPanelProps {
@@ -46,6 +51,8 @@ export interface RightPanelProps {
   setDrought: (s: DroughtControlState) => void;
   infra: InfraControlState;
   setInfra: (s: InfraControlState) => void;
+  weather: WeatherControlState;
+  setWeather: (s: WeatherControlState) => void;
   onRun: () => void;
   // FloodAI 11-factor AHP extras
   ahpDefaults?: FloodWeights | null;
@@ -57,6 +64,10 @@ export interface RightPanelProps {
   // ClimateLens extremes (no map tile) + InfraRisk criticality (map grid)
   extremes?: ClimateExtremesResponse | null;
   criticality?: InfraCriticalityResponse | null;
+  // WeatherCast forecast (no map tile; rendered as a panel)
+  weatherForecast?: WeatherForecastResponse | null;
+  // FloodAI susceptibility: live 7-day flood nowcast (fire-and-forget)
+  floodWatch?: FloodWatch | null;
   // SAR severity overlay toggle
   severityOn?: boolean;
   onToggleSeverity?: () => void;
@@ -76,6 +87,8 @@ export function RightPanel(props: RightPanelProps) {
     setDrought,
     infra,
     setInfra,
+    weather,
+    setWeather,
     onRun,
     ahpDefaults,
     activeFactors,
@@ -84,6 +97,8 @@ export function RightPanel(props: RightPanelProps) {
     mlRisk,
     extremes,
     criticality,
+    weatherForecast,
+    floodWatch,
     severityOn,
     onToggleSeverity,
   } = props;
@@ -97,6 +112,8 @@ export function RightPanel(props: RightPanelProps) {
   const isExtremes = moduleId === "climate" && climate.product === "extremes";
   const isCriticality =
     moduleId === "infra" && infra.product === "criticality";
+  // WeatherCast is panel-only (no map tile), like multi-year / ML-risk.
+  const isWeather = moduleId === "weather";
 
   return (
     <div className="flex h-full flex-col">
@@ -145,6 +162,14 @@ export function RightPanel(props: RightPanelProps) {
             <InfraControls
               state={infra}
               setState={setInfra}
+              loading={loading}
+              onRun={onRun}
+            />
+          )}
+          {moduleId === "weather" && (
+            <WeatherControls
+              state={weather}
+              setState={setWeather}
               loading={loading}
               onRun={onRun}
             />
@@ -239,6 +264,27 @@ export function RightPanel(props: RightPanelProps) {
                 message="Run criticality to rank road segments by edge betweenness centrality."
               />
             )
+          ) : isWeather ? (
+            weatherForecast || loading || error ? (
+              <motion.div
+                key={`weather-${weatherForecast?.days ?? "pending"}-${weatherForecast?.source ?? ""}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <WeatherPanel
+                  data={weatherForecast ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No forecast yet"
+                message="Pick a forecast horizon and get the live short-range rainfall forecast for your AOI."
+              />
+            )
           ) : (
             <>
               {error && <ErrorNote message={error} />}
@@ -257,6 +303,7 @@ export function RightPanel(props: RightPanelProps) {
                     onToggleFactor={onToggleFactor}
                     severityOn={severityOn}
                     onToggleSeverity={onToggleSeverity}
+                    floodWatch={floodWatch}
                   />
                 </motion.div>
               )}

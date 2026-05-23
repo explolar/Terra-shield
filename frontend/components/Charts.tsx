@@ -21,6 +21,7 @@ import type {
   MultiYearPoint,
   MlFeatureImportance,
   ClimateExtremeIndex,
+  WeatherDaily,
 } from "@/lib/types";
 import { FLOOD_FACTOR_LABELS, type FloodFactor } from "@/lib/types";
 import { HAZARD_RAMP, rampColor } from "@/lib/colors";
@@ -360,6 +361,159 @@ export function MlFeatureImportanceChart({
             ))}
           </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---- WeatherCast: short date label (e.g. "Mon 12") from an ISO date ----
+function shortDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+}
+
+// ---- WeatherCast: daily precipitation bar chart (precip_mm + probability) ----
+export function WeatherPrecipChart({ daily }: { daily: WeatherDaily[] }) {
+  if (!daily.length) {
+    return (
+      <p className="text-xs text-ink-subtle">No forecast data available.</p>
+    );
+  }
+  const data = daily.map((d) => ({
+    name: shortDate(d.date),
+    full: d.date,
+    precip: d.precip_mm ?? 0,
+    prob: d.precip_prob,
+  }));
+  return (
+    <div className="h-44 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id="weatherPrecip" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.55} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+            interval="preserveStartEnd"
+            minTickGap={8}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            unit="mm"
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(148,163,184,0.12)" }}
+            content={({ active, payload }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">
+                    {payload[0].payload.full}
+                  </div>
+                  <div className="text-ink-muted">
+                    {payload[0].value} mm precip
+                  </div>
+                  {typeof payload[0].payload.prob === "number" && (
+                    <div className="text-ink-muted">
+                      {payload[0].payload.prob}% probability
+                    </div>
+                  )}
+                </div>
+              ) : null
+            }
+          />
+          <Bar dataKey="precip" fill="url(#weatherPrecip)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---- WeatherCast: daily temperature range (tmax / tmin) line chart ----
+export function WeatherTempChart({ daily }: { daily: WeatherDaily[] }) {
+  const data = daily
+    .filter((d) => d.tmax_c !== null || d.tmin_c !== null)
+    .map((d) => ({
+      name: shortDate(d.date),
+      full: d.date,
+      tmax: d.tmax_c,
+      tmin: d.tmin_c,
+    }));
+  if (!data.length) return null;
+  return (
+    <div className="h-40 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+            interval="preserveStartEnd"
+            minTickGap={8}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            unit="°"
+            domain={["auto", "auto"]}
+          />
+          <Tooltip
+            cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+            content={({ active, payload }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">
+                    {payload[0].payload.full}
+                  </div>
+                  {payload.map((p: any) => (
+                    <div key={p.dataKey} className="text-ink-muted">
+                      {p.dataKey === "tmax" ? "Max" : "Min"}: {p.value}°C
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            }
+          />
+          <RechartsLegend
+            wrapperStyle={{ fontSize: 11 }}
+            iconType="circle"
+            iconSize={8}
+          />
+          <Line
+            type="monotone"
+            dataKey="tmax"
+            name="Max"
+            stroke="#f97316"
+            strokeWidth={2.2}
+            dot={false}
+            activeDot={{ r: 4, fill: "#f97316" }}
+            connectNulls
+          />
+          <Line
+            type="monotone"
+            dataKey="tmin"
+            name="Min"
+            stroke="#0ea5e9"
+            strokeWidth={2.2}
+            dot={false}
+            activeDot={{ r: 4, fill: "#0ea5e9" }}
+            connectNulls
+          />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );

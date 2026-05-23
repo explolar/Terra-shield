@@ -6,6 +6,7 @@ import {
   Bot,
   Globe2,
   Network,
+  CloudRain,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleId } from "@/lib/types";
@@ -54,6 +55,17 @@ export const MODULES: ModuleMeta[] = [
       "Standardized Precipitation Index from CHIRPS and NDVI-based Vegetation Condition Index for crop-stress monitoring.",
     accent: "text-amber-600",
     gradient: "from-amber-500/20 to-yellow-500/10",
+  },
+  {
+    id: "weather",
+    name: "WeatherCast",
+    short: "Weather",
+    icon: CloudRain,
+    tagline: "Live short-range rainfall forecast",
+    description:
+      "Open-Meteo 16-day forecast over your AOI — daily precipitation, heavy-rain days and a flood-watch nowcast for the days ahead.",
+    accent: "text-sky-600",
+    gradient: "from-sky-500/20 to-cyan-500/10",
   },
   {
     id: "infra",

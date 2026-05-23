@@ -27,6 +27,7 @@ import type {
   MlModel,
   ClimateExtremesResponse,
   InfraCriticalityResponse,
+  WeatherForecastResponse,
 } from "./types";
 
 export const API_BASE =
@@ -156,6 +157,12 @@ export const infraExposure = (body: { aoi: AOI; hazard: Hazard }) =>
 // Road-network criticality via edge betweenness centrality (NetworkX).
 export const infraCriticality = (aoi: AOI) =>
   post<InfraCriticalityResponse>("/infra/criticality", { aoi });
+
+// ---- WeatherCast ----
+// Live short-range forecast (Open-Meteo). days 1-16, default 7.
+// On provider failure the endpoint returns HTTP 503 -> ApiError.
+export const weatherForecast = (aoi: AOI, days = 7) =>
+  post<WeatherForecastResponse>("/weather/forecast", { aoi, days });
 
 // ---- GeoCopilot ----
 export const getCopilotTools = () =>

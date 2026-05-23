@@ -13,12 +13,13 @@ import { CopilotPanel } from "@/components/CopilotPanel";
 import { ResiliencePanel } from "@/components/ResiliencePanel";
 import { SourceBadge } from "@/components/ui";
 import { moduleMeta } from "@/components/modules";
-import { DEFAULT_WEIGHTS } from "@/components/Controls";
+import { DEFAULT_WEIGHTS, DEFAULT_WEATHER } from "@/components/Controls";
 import type {
   ClimateControlState,
   DroughtControlState,
   FloodControlState,
   InfraControlState,
+  WeatherControlState,
 } from "@/components/Controls";
 
 import {
@@ -35,6 +36,7 @@ import {
   getStatus,
   infraExposure,
   infraCriticality,
+  weatherForecast,
 } from "@/lib/api";
 import type {
   AOI,
@@ -47,6 +49,8 @@ import type {
   MlRiskResponse,
   ClimateExtremesResponse,
   InfraCriticalityResponse,
+  WeatherForecastResponse,
+  FloodWatch,
   PointFeatureCollection,
   LineFeatureCollection,
 } from "@/lib/types";
@@ -116,6 +120,9 @@ export default function Dashboard() {
     hazard: "flood",
     product: "exposure",
   });
+  const [weather, setWeather] = useState<WeatherControlState>({
+    ...DEFAULT_WEATHER,
+  });
 
   // --- AHP default weights (from GET /optimize/ahp/default) ---
   const [ahpDefaults, setAhpDefaults] = useState<FloodWeights | null>(null);
@@ -136,6 +143,12 @@ export default function Dashboard() {
   );
   const [criticality, setCriticality] =
     useState<InfraCriticalityResponse | null>(null);
+
+  // --- WeatherCast forecast (panel-only) + FloodAI flood-nowcast chip ---
+  const [forecast, setForecast] = useState<WeatherForecastResponse | null>(
+    null,
+  );
+  const [floodWatch, setFloodWatch] = useState<FloodWatch | null>(null);
 
   // --- layer + request state ---
   const [layer, setLayer] = useState<LayerResponse | null>(null);
@@ -244,6 +257,29 @@ export default function Dashboard() {
       return;
     }
 
+    // WeatherCast: live short-range forecast, panel-only (no map tile).
+    if (moduleId === "weather") {
+      setLayer(null);
+      setMultiYear(null);
+      setMlRisk(null);
+      setExtremes(null);
+      setCriticality(null);
+      try {
+        const res = await weatherForecast(aoi, weather.days);
+        setForecast(res);
+      } catch (e: any) {
+        setError(
+          e?.status === 503
+            ? "Weather provider unavailable — try again."
+            : e?.detail || e?.message || "Forecast failed.",
+        );
+        setForecast(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     // InfraRisk criticality: road-network LineString grid colored by tier.
     if (moduleId === "infra" && infra.product === "criticality") {
       setLayer(null);
@@ -267,6 +303,7 @@ export default function Dashboard() {
     setMlRisk(null);
     setExtremes(null);
     setCriticality(null);
+    setFloodWatch(null);
     try {
       let res: LayerResponse;
       if (moduleId === "flood") {
@@ -276,6 +313,11 @@ export default function Dashboard() {
             weights: flood.weights,
             rainfall_scenario: flood.rainfall_scenario,
           });
+          // Fire-and-forget: fetch a live 7-day flood nowcast for the chip.
+          // Failures are swallowed so the susceptibility result is never blocked.
+          weatherForecast(aoi, 7)
+            .then((wx) => setFloodWatch(wx.summary.flood_watch))
+            .catch(() => setFloodWatch(null));
         } else if (flood.product === "sar") {
           res = await floodSarExtent({ aoi });
         } else {
@@ -310,7 +352,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [moduleId, aoi, flood, climate, drought, infra]);
+  }, [moduleId, aoi, flood, climate, drought, infra, weather]);
 
   // --- AOI handlers ---
   function clearOrOverlays() {
@@ -322,6 +364,8 @@ export default function Dashboard() {
     setMlRisk(null);
     setExtremes(null);
     setCriticality(null);
+    setForecast(null);
+    setFloodWatch(null);
   }
 
   function selectLocation(loc: LocationPreset) {
@@ -404,6 +448,8 @@ export default function Dashboard() {
         setDrought={setDrought}
         infra={infra}
         setInfra={setInfra}
+        weather={weather}
+        setWeather={setWeather}
         onRun={runAnalysis}
         ahpDefaults={ahpDefaults}
         activeFactors={activeFactors}
@@ -412,6 +458,8 @@ export default function Dashboard() {
         mlRisk={mlRisk}
         extremes={extremes}
         criticality={criticality}
+        weatherForecast={forecast}
+        floodWatch={floodWatch}
         severityOn={severityOn}
         onToggleSeverity={toggleSeverity}
       />

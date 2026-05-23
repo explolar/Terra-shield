@@ -20,9 +20,12 @@ import {
   Eye,
   Thermometer,
   Network,
+  CloudRain,
+  Wind,
 } from "lucide-react";
 import type {
   FloodFactor,
+  FloodWatch,
   LayerResponse,
   ModuleId,
   MultiYearResponse,
@@ -30,6 +33,7 @@ import type {
   TrendDirection,
   ClimateExtremesResponse,
   InfraCriticalityResponse,
+  WeatherForecastResponse,
 } from "@/lib/types";
 import { FLOOD_FACTORS, FLOOD_FACTOR_LABELS } from "@/lib/types";
 import {
@@ -48,6 +52,8 @@ import {
   MultiYearChart,
   MlFeatureImportanceChart,
   ExtremesChart,
+  WeatherPrecipChart,
+  WeatherTempChart,
 } from "@/components/Charts";
 
 // Susceptibility class labels (1-5) for the mean_class headline.
@@ -810,6 +816,161 @@ export function CriticalityPanel({
   );
 }
 
+// ---- WeatherCast: shared flood-watch color coding ----
+// "no heavy rain" = emerald, "heavy rain" = amber, "very heavy rain" = red.
+const FLOOD_WATCH_STYLE: Record<FloodWatch, string> = {
+  "no heavy rain": "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
+  "heavy rain": "border-amber-500/40 bg-amber-500/10 text-amber-700",
+  "very heavy rain": "border-rose-500/40 bg-rose-500/10 text-rose-700",
+};
+
+const FLOOD_WATCH_DOT: Record<FloodWatch, string> = {
+  "no heavy rain": "bg-emerald-500",
+  "heavy rain": "bg-amber-500",
+  "very heavy rain": "bg-rose-500",
+};
+
+export function FloodWatchBadge({
+  watch,
+  prefix,
+  size = "md",
+}: {
+  watch: FloodWatch;
+  prefix?: string;
+  size?: "sm" | "md";
+}) {
+  const style =
+    FLOOD_WATCH_STYLE[watch] ?? FLOOD_WATCH_STYLE["no heavy rain"];
+  const dot = FLOOD_WATCH_DOT[watch] ?? FLOOD_WATCH_DOT["no heavy rain"];
+  const sm = size === "sm";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border font-semibold ${style} ${
+        sm ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+      {prefix ? `${prefix} ` : ""}
+      {watch}
+    </span>
+  );
+}
+
+// ---- WeatherCast: live short-range forecast panel (no map tile) ----
+export function WeatherPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: WeatherForecastResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading) return <Spinner label="Fetching live forecast…" />;
+  if (!data) return null;
+
+  const s = data.summary;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <CloudRain size={15} className="text-brand-cyan" /> {data.days}-day
+          forecast
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      {/* flood-watch badge */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FloodWatchBadge watch={s.flood_watch} />
+        <span className="text-[10px] text-ink-subtle">
+          {data.provider} · {data.latitude.toFixed(2)}, {data.longitude.toFixed(2)}
+        </span>
+      </div>
+
+      {/* summary stat cards */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <Droplets size={12} /> Total precip
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {s.total_precip_mm.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-ink-muted">mm</span>
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <CloudRain size={12} /> Heavy-rain days
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {s.heavy_rain_days}
+            </span>
+            <span className="text-[11px] text-ink-muted">of {data.days}</span>
+          </div>
+        </div>
+        <div className="col-span-2 rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <Wind size={12} /> Peak precip
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {s.peak_precip_mm.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-ink-muted">mm</span>
+            {s.peak_date && (
+              <span className="ml-auto text-[11px] text-ink-muted">
+                on {s.peak_date}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* daily precipitation bar chart */}
+      <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+        <SectionLabel>
+          <span className="inline-flex items-center gap-1.5">
+            <BarChart3 size={12} /> Daily precipitation (mm)
+          </span>
+        </SectionLabel>
+        <WeatherPrecipChart daily={data.daily} />
+      </div>
+
+      {/* temperature range line chart (optional) */}
+      {data.daily.some(
+        (d) => d.tmax_c !== null || d.tmin_c !== null,
+      ) && (
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <Thermometer size={12} /> Temperature range (°C)
+            </span>
+          </SectionLabel>
+          <WeatherTempChart daily={data.daily} />
+        </div>
+      )}
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        Live short-range forecast from {data.provider}. Heavy-rain days exceed
+        the daily-precipitation threshold; the flood-watch reflects the wettest
+        days ahead.
+      </p>
+    </div>
+  );
+}
+
 function ModuleChart({
   moduleId,
   layer,
@@ -849,6 +1010,7 @@ export function ResultPanel({
   onToggleFactor,
   severityOn,
   onToggleSeverity,
+  floodWatch,
 }: {
   moduleId: ModuleId;
   layer: LayerResponse;
@@ -857,6 +1019,8 @@ export function ResultPanel({
   // SAR severity overlay toggle
   severityOn?: boolean;
   onToggleSeverity?: () => void;
+  // FloodAI susceptibility: optional live 7-day flood nowcast (fire-and-forget).
+  floodWatch?: FloodWatch | null;
 }) {
   const isRamp = layer.legend.some(
     (l) => !l.label || l.label.trim() === "",
@@ -899,6 +1063,17 @@ export function ResultPanel({
           <div className="mt-1 text-xs text-ink-subtle">
             {layer.baseline} → {layer.projected} {layer.unit} vs baseline
           </div>
+        </div>
+      )}
+
+      {/* FloodAI: live 7-day flood nowcast chip (fire-and-forget; hidden on fail) */}
+      {isFloodSusc && floodWatch && (
+        <div className="flex flex-wrap items-center gap-2">
+          <FloodWatchBadge
+            watch={floodWatch}
+            prefix="Flood nowcast:"
+            size="sm"
+          />
         </div>
       )}
 

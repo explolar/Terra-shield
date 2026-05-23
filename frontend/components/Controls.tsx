@@ -64,6 +64,17 @@ export interface InfraControlState {
   product: InfraProduct;
 }
 
+// WeatherCast: live short-range forecast (Open-Meteo). Panel-only (no map tile).
+export type WeatherDays = 3 | 7 | 10 | 14;
+
+export interface WeatherControlState {
+  days: WeatherDays;
+}
+
+export const DEFAULT_WEATHER: WeatherControlState = {
+  days: 7,
+};
+
 export type ResilienceTool =
   | "shelters"
   | "evacuation"
@@ -453,6 +464,43 @@ export function InfraControls({
         onClick={onRun}
         label={isCriticality ? "Rank criticality" : "Compute exposure"}
       />
+    </div>
+  );
+}
+
+// ---------------- WeatherCast ----------------
+export function WeatherControls({
+  state,
+  setState,
+  loading,
+  onRun,
+}: {
+  state: WeatherControlState;
+  setState: (s: WeatherControlState) => void;
+  loading: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <SectionLabel>Forecast days</SectionLabel>
+        <Toggle
+          value={state.days}
+          onChange={(v) => setState({ ...state, days: v })}
+          options={[
+            { value: 3, label: "3 days" },
+            { value: 7, label: "7 days" },
+            { value: 10, label: "10 days" },
+            { value: 14, label: "14 days" },
+          ]}
+        />
+      </div>
+      <p className="note-box text-[11px] leading-relaxed">
+        Live short-range forecast from Open-Meteo over your AOI centroid. Daily
+        precipitation, heavy-rain days and a flood-watch nowcast — no API key
+        required.
+      </p>
+      <RunButton loading={loading} onClick={onRun} label="Get forecast" />
     </div>
   );
 }

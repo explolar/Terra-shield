@@ -336,7 +336,41 @@ export type ModuleId =
   | "drought"
   | "infra"
   | "resilience"
-  | "copilot";
+  | "copilot"
+  | "weather";
+
+// ---- WeatherCast: live short-range forecast (Open-Meteo) ----
+// POST /weather/forecast -> { aoi, days }
+export type FloodWatch = "no heavy rain" | "heavy rain" | "very heavy rain";
+
+export interface WeatherDaily {
+  date: string;
+  precip_mm: number | null;
+  precip_prob: number | null;
+  tmax_c: number | null;
+  tmin_c: number | null;
+  wind_kmh: number | null;
+}
+
+export interface WeatherSummary {
+  total_precip_mm: number;
+  heavy_rain_days: number;
+  peak_precip_mm: number;
+  peak_date: string;
+  flood_watch: FloodWatch;
+}
+
+export interface WeatherForecastResponse {
+  module: "weather";
+  product: "forecast";
+  source: Source;
+  provider: string;
+  latitude: number;
+  longitude: number;
+  days: number;
+  daily: WeatherDaily[];
+  summary: WeatherSummary;
+}
 
 // ---- ResilienceOR (operations research) ----
 

@@ -179,7 +179,7 @@ export default function LandingPage() {
       >
         <SectionHeader
           eyebrow="Platform"
-          title="Seven engines, one workspace"
+          title="Eight engines, one workspace"
           subtitle="Each module is a production-grade geospatial model that runs over your area of interest and returns mappable, cited results."
         />
         <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
