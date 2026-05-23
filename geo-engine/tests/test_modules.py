@@ -36,12 +36,12 @@ def test_flood_weights_normalize():
 
 
 def test_flood_ahp_matrix_sets_weights():
-    m = [[1, 2, 2, 3, 4, 5], [.5, 1, 1, 2, 3, 4], [.5, 1, 1, 2, 3, 4],
-         [1 / 3, .5, .5, 1, 2, 3], [1 / 4, 1 / 3, 1 / 3, .5, 1, 2],
-         [1 / 5, 1 / 4, 1 / 4, 1 / 3, .5, 1]]
-    r = flood.susceptibility(AOI, ahp_matrix=m)
+    from terrashield_geo import flood_factors
+
+    r = flood.susceptibility(AOI, ahp_matrix=flood_factors.AHP_MATRIX)
     assert r["ahp"]["consistent"] is True
-    assert r["weights"]["elevation"] == max(r["weights"].values())
+    assert len(r["weights"]) == 11
+    assert r["weights"]["distance_to_river"] == max(r["weights"].values())
 
 
 def test_climate_projection_signal_direction():

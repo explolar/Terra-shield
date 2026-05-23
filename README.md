@@ -32,7 +32,7 @@ It is built as a **modular platform**, not a single model: a geospatial compute 
 
 | Module | Purpose | Key inputs | Depth |
 |--------|---------|-----------|:-----:|
-| 🌊 **FloodAI** | Flood susceptibility (AHP-weighted), SAR inundation extent, road-access disruption, + an Area-of-Applicability reliability mask | DEM, slope, TWI, drainage, rainfall, LULC, Sentinel-1 | **Flagship** |
+| 🌊 **FloodAI** | Paper-grade **11-factor AHP-MCDM** susceptibility (Saaty eigenvector + CR validation, per-factor layers), Otsu SAR inundation extent, road-access disruption, + Area-of-Applicability reliability | dist-to-river, HAND, rainfall, slope, elevation, drainage density, TWI, LULC, soil, NDVI, curvature, Sentinel-1 | **Flagship** |
 | 🌡️ **ClimateLens** | CMIP6 / SSP future-climate projections & anomalies | NEX-GDDP-CMIP6 (SSP245/585), ERA5 | Working |
 | 🌵 **DroughtAI** | Meteorological + vegetation drought (SPI, NDVI/VCI anomaly) | CHIRPS, MODIS/Sentinel-2 | Working |
 | 🛣️ **InfraRisk** | Population / infrastructure exposure under hazard | ESA WorldCover, WorldPop, OSM | Working |

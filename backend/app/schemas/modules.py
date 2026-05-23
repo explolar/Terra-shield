@@ -10,12 +10,20 @@ from .common import AOI
 
 # ---- FloodAI -------------------------------------------------------------- #
 class FloodWeights(BaseModel):
-    elevation: float | None = Field(default=None, ge=0, le=1)
-    slope: float | None = Field(default=None, ge=0, le=1)
-    twi: float | None = Field(default=None, ge=0, le=1)
-    drainage: float | None = Field(default=None, ge=0, le=1)
+    """Optional per-factor weights for the 11-factor AHP model (0-1). Any omitted
+    factor falls back to the AHP default; weights are renormalized to sum to 1."""
+
+    distance_to_river: float | None = Field(default=None, ge=0, le=1)
+    hand: float | None = Field(default=None, ge=0, le=1)
     rainfall: float | None = Field(default=None, ge=0, le=1)
-    landuse: float | None = Field(default=None, ge=0, le=1)
+    slope: float | None = Field(default=None, ge=0, le=1)
+    elevation: float | None = Field(default=None, ge=0, le=1)
+    drainage_density: float | None = Field(default=None, ge=0, le=1)
+    twi: float | None = Field(default=None, ge=0, le=1)
+    lulc: float | None = Field(default=None, ge=0, le=1)
+    soil: float | None = Field(default=None, ge=0, le=1)
+    ndvi: float | None = Field(default=None, ge=0, le=1)
+    curvature: float | None = Field(default=None, ge=0, le=1)
 
 
 class SusceptibilityRequest(BaseModel):

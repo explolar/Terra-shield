@@ -317,25 +317,15 @@ def mitigation_plan(
 # --------------------------------------------------------------------------- #
 # AOI bridges — derive OR inputs from a single AOI (deterministic, offline-safe)
 # --------------------------------------------------------------------------- #
-# A defensible default pairwise matrix for the six flood factors, ordered:
-# [elevation, slope, twi, drainage, rainfall, landuse]. Reading row i vs col j:
-# how much more important factor i is than j on Saaty's 1-9 scale.
-DEFAULT_FLOOD_AHP = {
-    "labels": ["elevation", "slope", "twi", "drainage", "rainfall", "landuse"],
-    "matrix": [
-        [1,   2,   2,   3,   4,   5],
-        [1/2, 1,   1,   2,   3,   4],
-        [1/2, 1,   1,   2,   3,   4],
-        [1/3, 1/2, 1/2, 1,   2,   3],
-        [1/4, 1/3, 1/3, 1/2, 1,   2],
-        [1/5, 1/4, 1/4, 1/3, 1/2, 1],
-    ],
-}
-
-
 def default_flood_ahp() -> dict[str, Any]:
-    """AHP weights from the default flood pairwise matrix (with CR check)."""
-    return ahp_weights(DEFAULT_FLOOD_AHP["matrix"], DEFAULT_FLOOD_AHP["labels"])
+    """AHP weights for the canonical 11-factor flood model (Saaty eigenvector + CR).
+
+    Single source of truth lives in ``flood_factors`` so the /optimize endpoint and
+    the FloodAI engine always report identical weights.
+    """
+    from . import flood_factors
+
+    return flood_factors.ahp_report()
 
 
 def shelters_for_aoi(aoi: dict, p: int = 3, radius_km: float = 8.0,

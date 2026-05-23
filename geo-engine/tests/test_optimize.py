@@ -18,7 +18,9 @@ def test_ahp_default_flood_is_consistent():
     res = opt.default_flood_ahp()
     assert res["consistent"] is True
     assert res["consistency_ratio"] <= 0.10
-    assert res["weights"]["elevation"] == max(res["weights"].values())
+    assert res["n_factors"] == 11
+    # Distance to river is the highest-priority factor in the 11-factor model.
+    assert res["weights"]["distance_to_river"] == max(res["weights"].values())
 
 
 def test_ahp_rejects_non_positive():

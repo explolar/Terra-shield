@@ -16,20 +16,15 @@ import logging
 from typing import Any
 
 from . import aoi as aoi_mod
-from . import demo, gee, tiles
+from . import demo, flood_factors, gee, tiles
 
 log = logging.getLogger("terrashield.geo.flood")
 
-# Default AHP-style weights (sum = 1.0). Lower elevation/slope and higher TWI,
-# drainage proximity and rainfall all increase susceptibility.
-DEFAULT_WEIGHTS = {
-    "elevation": 0.25,
-    "slope": 0.20,
-    "twi": 0.20,
-    "drainage": 0.15,
-    "rainfall": 0.10,
-    "landuse": 0.10,
-}
+# Canonical 11-factor AHP set (Saaty eigenvector weights, CR-validated). See
+# flood_factors.py for the pairwise matrix and per-factor reclassification.
+FACTOR_NAMES = flood_factors.FACTOR_NAMES
+FACTOR_LABELS = flood_factors.FACTOR_LABELS
+DEFAULT_WEIGHTS = dict(flood_factors.DEFAULT_WEIGHTS)
 
 # Rainfall scenario multipliers applied to the rainfall factor.
 RAINFALL_SCENARIOS = {"normal": 1.0, "wet": 1.25, "extreme": 1.6}
@@ -81,6 +76,10 @@ def susceptibility(
         ahp = optimize.ahp_weights(ahp_matrix, list(DEFAULT_WEIGHTS.keys()))
         weights = ahp["weights"]
         ahp_meta = {k: ahp[k] for k in ("consistency_ratio", "consistent", "lambda_max")}
+    elif weights is None:
+        # Default run: report the canonical 11-factor AHP consistency.
+        rep = flood_factors.ahp_report()
+        ahp_meta = {k: rep[k] for k in ("consistency_ratio", "consistent", "lambda_max")}
     w = _normalize_weights(weights)
     rain_mult = RAINFALL_SCENARIOS.get(rainfall_scenario, 1.0)
 
@@ -144,92 +143,53 @@ def _susceptibility_demo(norm, w, scenario) -> dict[str, Any]:
 
 
 def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pragma: no cover
+    """Paper-grade 11-factor AHP-MCDM susceptibility on live Earth Engine.
+
+    Returns a 1-5 class composite tile, per-factor tiles (for paper figures),
+    the AHP report, and class-area statistics. ``w`` may be user weights; if it
+    matches the AHP default it is passed through unchanged.
+    """
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
 
-    # --- conditioning factors -------------------------------------------------
-    dem = ee.Image("USGS/SRTMGL1_003").clip(geom)
-    slope = ee.Terrain.slope(dem)
+    composite, factors, ahp = flood_factors.compute_susceptibility(geom, w)
 
-    # TWI = ln(upstream_area / tan(slope)) using MERIT Hydro upstream area.
-    upa = ee.Image("MERIT/Hydro/v1_0_1").select("upa").clip(geom)
-    slope_rad = slope.multiply(3.14159265 / 180).tan().max(0.001)
-    twi = upa.divide(slope_rad).log()
-
-    # Distance to permanent water (drainage proximity).
-    water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence").gt(50)
-    drainage = water.fastDistanceTransform(256).sqrt().multiply(ee.Image.pixelArea().sqrt())
-
-    # Annual rainfall (CHIRPS) scaled by scenario.
-    rainfall = (
-        ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-        .filterDate("2020-01-01", "2023-12-31")
-        .select("precipitation")
-        .sum()
-        .clip(geom)
-        .multiply(rain_mult)
-    )
-
-    landuse = ee.Image("ESA/WorldCover/v200/2021").select("Map").clip(geom)
-    # Built-up (50) and cropland (40) are more flood-vulnerable than forest (10).
-    lu_risk = (
-        landuse.remap([10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100],
-                      [0.2, 0.3, 0.4, 0.7, 0.9, 0.3, 0.1, 1.0, 0.8, 0.6, 0.2], 0.3)
-    )
-
-    def _scale(img, invert=False):
-        mm = img.reduceRegion(
-            reducer=ee.Reducer.percentile([2, 98]), geometry=geom, scale=90,
-            maxPixels=1e9, bestEffort=True,
-        )
-        keys = img.bandNames()
-        lo = ee.Number(mm.get(ee.String(keys.get(0)).cat("_p2")))
-        hi = ee.Number(mm.get(ee.String(keys.get(0)).cat("_p98")))
-        scaled = img.unitScale(lo, hi).clamp(0, 1)
-        return scaled.subtract(1).multiply(-1) if invert else scaled
-
-    factors = {
-        "elevation": _scale(dem, invert=True),  # low elevation -> high risk
-        "slope": _scale(slope, invert=True),    # flat -> high risk
-        "twi": _scale(twi),
-        "drainage": _scale(drainage, invert=True),  # close to water -> high risk
-        "rainfall": _scale(rainfall),
-        "landuse": lu_risk,
+    tile_url = tiles.image_tile_url(composite, flood_factors.MCA_VIZ)
+    factor_urls = {
+        name: tiles.image_tile_url(img, flood_factors.FACTOR_VIZ)
+        for name, img in factors.items()
     }
 
-    index = None
-    for name, weight in w.items():
-        contrib = factors[name].multiply(weight)
-        index = contrib if index is None else index.add(contrib)
-    index = index.rename("susceptibility").clip(geom)
-
-    vis = {"min": 0, "max": 1, "palette": tiles.RAMPS["risk"]}
-    tile_url = tiles.image_tile_url(index, vis)
-
-    mean = index.reduceRegion(
-        reducer=ee.Reducer.mean(), geometry=geom, scale=90, maxPixels=1e9, bestEffort=True
-    ).get("susceptibility")
-    high_area = (
-        index.gt(0.6)
-        .multiply(ee.Image.pixelArea())
-        .reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=90,
-                      maxPixels=1e9, bestEffort=True)
-        .get("susceptibility")
-    )
+    px = ee.Image.pixelArea()
+    mean = ee.Number(composite.reduceRegion(
+        ee.Reducer.mean(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).values().get(0))
+    high = composite.gte(4).multiply(px).reduceRegion(
+        ee.Reducer.sum(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).values().get(0)
+    high_km2 = round((ee.Number(ee.Algorithms.If(high, high, 0)).getInfo() or 0) / 1e6, 2)
+    mean_class = round(mean.getInfo() or 0, 2)
 
     return {
         "module": "flood",
         "product": "susceptibility",
         "source": "live",
         "tile_url": tile_url,
+        "factor_urls": factor_urls,
         "grid": None,
         "legend": tiles.build_legend("risk", SUSCEPTIBILITY_CLASSES),
         "stats": {
-            "mean": round(ee.Number(mean).getInfo(), 3),
-            "high_risk_area_km2": round(ee.Number(high_area).getInfo() / 1e6, 2),
+            "mean": round(mean_class / 5.0, 3),       # normalized 0-1
+            "mean_class": mean_class,                  # 1-5 AHP class
+            "high_risk_area_km2": high_km2,            # classes 4-5
             "area_km2": norm["area_km2"],
         },
         "weights": w,
+        "ahp": {k: ahp.get(k) for k in ("consistency_ratio", "consistent", "lambda_max")},
+        "reliability": {
+            "method": "AHP-MCDM, 11 factors (Saaty 1980); spatial block CV for any learned layer",
+            "factors": len(FACTOR_NAMES),
+        },
         "rainfall_scenario": scenario,
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
     }
