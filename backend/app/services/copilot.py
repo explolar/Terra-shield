@@ -76,10 +76,14 @@ CITATIONS = {
     "climate": [
         "Thrasher et al. (2022), NEX-GDDP-CMIP6, Scientific Data",
         "O'Neill et al. (2016), SSP scenarios, Geosci. Model Dev.",
+        "Zhang et al. (2011), ETCCDI extreme indices, WIREs Clim. Change",
     ],
     "drought": ["McKee et al. (1993), SPI, AMS Conf. Applied Climatology",
                 "Kogan (1995), Vegetation Condition Index, Adv. Space Research"],
-    "infra": ["WorldPop (2018), Bondarenko et al., population modelling"],
+    "infra": [
+        "WorldPop (2018), Bondarenko et al., population modelling",
+        "Freeman (1977), betweenness centrality, Sociometry",
+    ],
     "optimize": [
         "Saaty (1980), Analytic Hierarchy Process",
         "Church & ReVelle (1974), Maximal Covering Location Problem, Papers Reg. Sci.",
@@ -119,6 +123,21 @@ def _tool_drought_veg(aoi, e):
 
 def _tool_infra(aoi, e):
     return infra.exposure(aoi)
+
+
+def _tool_climate_extremes(aoi, e):
+    r = climate.extremes(aoi, e.get("ssp", "ssp585"), e.get("horizon", "2050s"))
+    return {
+        "module": "climate", "product": "extremes", "source": r["source"],
+        "tile_url": None, "grid": None, "legend": [],
+        "stats": {i["key"]: i["projected"] for i in r["indices"]},
+        "indices": r["indices"], "scenario": r["scenario"], "horizon": r["horizon"],
+        "aoi": r["aoi"],
+    }
+
+
+def _tool_infra_criticality(aoi, e):
+    return infra.road_criticality(aoi)
 
 
 def _tool_opt_shelters(aoi, e):
@@ -172,6 +191,10 @@ TOOLS: dict[str, dict[str, Any]] = {
                            "desc": "NDVI/VCI vegetation-stress anomaly"},
     "infra_exposure": {"fn": _tool_infra, "module": "infra",
                        "desc": "Population / infrastructure exposure"},
+    "climate_extremes": {"fn": _tool_climate_extremes, "module": "climate",
+                         "desc": "ETCCDI extreme-climate indices (heatwave/heavy-rain)"},
+    "infra_criticality": {"fn": _tool_infra_criticality, "module": "infra",
+                          "desc": "Road-network criticality (edge betweenness)"},
     "optimize_shelters": {"fn": _tool_opt_shelters, "module": "optimize",
                           "desc": "Relief-shelter siting (Maximal Covering Location)"},
     "optimize_evacuation": {"fn": _tool_opt_evacuation, "module": "optimize",
@@ -254,10 +277,18 @@ def _choose_tool(q: str) -> str:
         return "optimize_evacuation"
     if has("budget", "mitigation", "invest", "spend", "prioriti"):
         return "optimize_mitigation"
+    # Road criticality must beat flood_road (both mention "road").
+    if has("critical road", "road criticality", "most critical", "network critical",
+            "betweenness", "important road", "key road"):
+        return "infra_criticality"
     if has("road", "access", "cut off", "stranded"):
         return "flood_road"
     if has("inundation", "sar", "satellite flood", "flood extent", "submerged"):
         return "flood_sar"
+    if has("heatwave", "heat wave", "hot days", "extreme index", "extreme indices",
+            "climate extreme", "rx1day", "consecutive dry", "extreme heat",
+            "rainfall indices", "precipitation indices", "extreme precipitation"):
+        return "climate_extremes"
     if has("population", "people exposed", "exposure", "buildings", "infrastructure", "settlement"):
         return "infra_exposure"
     # An explicit hazard subject wins over a generic climate/future trigger:
@@ -336,6 +367,22 @@ def _template_answer(tool: str, entities: dict, result: dict) -> str:
         return (
             f"Evacuation routing for {place}: a {s.get('route_km')} km path over "
             f"{s.get('segments')} segments reaches a safe exit via Dijkstra{warn}. Based on {src}."
+        )
+    if tool == "climate_extremes":
+        idx = {i["key"]: i for i in result.get("indices", [])}
+        hot = idx.get("hot_days", {})
+        rx = idx.get("rx1day", {})
+        return (
+            f"Climate extremes for {place} under {result.get('scenario','').upper()} by the "
+            f"{result.get('horizon')}: hot days (Tmax>35°C) {hot.get('baseline')}->{hot.get('projected')} "
+            f"days/yr, max 1-day rain {rx.get('baseline')}->{rx.get('projected')} mm "
+            f"(ETCCDI indices). Based on {src}."
+        )
+    if tool == "infra_criticality":
+        return (
+            f"Road-network criticality for {place}: {s.get('critical_segments')} of "
+            f"{s.get('segments')} segments are critical links (highest edge-betweenness) — "
+            f"prioritise these for flood protection. Based on {src}."
         )
     if tool == "optimize_mitigation":
         r = result.get("or_result", {})
