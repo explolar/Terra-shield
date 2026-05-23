@@ -9,36 +9,35 @@ module can grow independently.
 
 ```mermaid
 flowchart TB
-    subgraph FE["Frontend · Next.js 14"]
+    subgraph FE["Frontend · Next.js 14 (light theme, responsive)"]
         MAP[Leaflet map workspace]
-        PANELS[Module panels<br/>flood · climate · drought · infra]
+        PANELS[9 module panels<br/>flood · climate · drought · infra · OR<br/>weather · groundwater]
         COPILOT[GeoCopilot chat]
         CLIENT[Typed API client]
     end
 
     subgraph BE["Backend · FastAPI (async)"]
-        ROUTES[Routers<br/>/flood /climate /drought /infra /copilot /earthdata]
-        SVC[Services<br/>per-module orchestration]
-        CORE[Core<br/>config · logging · cache · rate-limit]
+        ROUTES[Routers<br/>/flood /climate /drought /infra /optimize<br/>/weather /groundwater /copilot /earthdata]
+        SVC[Services<br/>copilot · llm Llama · weather]
+        CORE[Core<br/>config · logging · cache · rate-limit · sanitize]
     end
 
     subgraph GE["geo-engine · terrashield_geo"]
         GEE[GEE auth + init<br/>graceful demo fallback]
-        AOI[AOI utils]
-        IDX[Spectral indices]
-        FLOOD[Flood compute]
-        CLIM[Climate compute]
-        DRY[Drought compute]
-        INFRA[Infra compute]
-        TILES[Tile / mapid serving]
+        AOI[AOI utils + indices + tiles]
+        FLOOD[flood · flood_factors AHP · ml_flood]
+        CLIM[climate · drought]
+        INFRA[infra · groundwater]
+        OPT[optimize · ResilienceOR]
     end
 
     subgraph EXT["External data"]
         EE[(Google Earth Engine)]
         CMIP[(NEX-GDDP-CMIP6)]
-        S1[(Sentinel-1 SAR)]
-        CHIRPS[(CHIRPS rainfall)]
-        OSM[(OpenStreetMap roads)]
+        S1[(Sentinel-1/2 · SRTM/MERIT)]
+        CHIRPS[(CHIRPS · MODIS)]
+        GRACE[(GRACE · JRC GSW · WorldPop)]
+        OM[(Open-Meteo forecast)]
     end
 
     CLIENT -->|REST JSON/GeoJSON/tileURL| ROUTES
@@ -47,11 +46,12 @@ flowchart TB
     COPILOT --> CLIENT
     ROUTES --> SVC --> GE
     CORE -.-> ROUTES
+    SVC -->|forecast| OM
     GEE --> EE
     CLIM --> CMIP
     FLOOD --> S1
-    DRY --> CHIRPS
-    INFRA --> OSM
+    CLIM --> CHIRPS
+    INFRA --> GRACE
 ```
 
 ## 2. Why these boundaries
