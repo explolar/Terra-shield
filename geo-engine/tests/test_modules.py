@@ -1,7 +1,7 @@
 """Demo-mode behaviour of the analytic modules (no GEE required)."""
 import numpy as np
 
-from terrashield_geo import climate, demo, drought, flood, infra
+from terrashield_geo import climate, demo, drought, flood, flood_factors, infra, ml_flood
 
 AOI = {"type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0]}
 
@@ -69,6 +69,15 @@ def test_climate_extremes_increase_under_warming():
     rx = next(i for i in r["indices"] if i["key"] == "rx1day")
     assert hot["projected"] >= hot["baseline"]   # more hot days in a warmer world
     assert rx["projected"] >= rx["baseline"]     # heavier 1-day extremes
+
+
+def test_ml_flood_risk_trains_with_shap():
+    r = ml_flood.flood_risk_ml(AOI, model="gbm", n_samples=300)
+    assert 0.0 <= r["metrics"]["cv_accuracy"] <= 1.0
+    assert len(r["feature_importance"]) == 11
+    assert r["top_factor"] in flood_factors.FACTOR_NAMES
+    # importances are a normalized distribution
+    assert abs(sum(f["importance"] for f in r["feature_importance"]) - 1.0) < 1e-3
 
 
 def test_flood_multiyear():

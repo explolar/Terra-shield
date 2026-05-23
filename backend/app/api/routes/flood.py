@@ -4,11 +4,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from terrashield_geo import aoi as aoi_mod
-from terrashield_geo import flood
+from terrashield_geo import flood, ml_flood
 
 from ...core.cache import cached
 from ...schemas.common import LayerResponse
 from ...schemas.modules import (
+    MlRiskRequest,
     MultiYearRequest,
     RoadRiskRequest,
     SarExtentRequest,
@@ -44,6 +45,18 @@ def sar_extent(req: SarExtentRequest):
             "flood.sar", payload,
             lambda: flood.sar_extent(req.aoi.to_engine(), req.pre_start, req.pre_end,
                                      req.post_start, req.post_end),
+        )
+    except aoi_mod.AOIError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/ml-risk")
+def ml_risk(req: MlRiskRequest):
+    payload = req.model_dump()
+    try:
+        return cached(
+            "flood.ml_risk", payload,
+            lambda: ml_flood.flood_risk_ml(req.aoi.to_engine(), req.model),
         )
     except aoi_mod.AOIError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -55,6 +55,11 @@ class MultiYearRequest(BaseModel):
     years: list[int] | None = Field(default=None, description="Defaults to 2019-2024")
 
 
+class MlRiskRequest(BaseModel):
+    aoi: AOI
+    model: Literal["gbm", "xgboost", "random_forest"] = "gbm"
+
+
 # ---- ClimateLens ---------------------------------------------------------- #
 class ProjectionRequest(BaseModel):
     aoi: AOI

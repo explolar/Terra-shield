@@ -39,6 +39,15 @@ def test_flood_sar_and_road():
     assert client.post("/api/v1/flood/road-risk", json={"aoi": AOI}).status_code == 200
 
 
+def test_flood_multiyear_and_ml():
+    my = client.post("/api/v1/flood/multiyear", json={"aoi": AOI, "years": [2019, 2020, 2021]})
+    assert my.status_code == 200 and len(my.json()["series"]) == 3
+    ml = client.post("/api/v1/flood/ml-risk", json={"aoi": AOI, "model": "gbm"})
+    assert ml.status_code == 200
+    body = ml.json()
+    assert len(body["feature_importance"]) == 11 and "cv_accuracy" in body["metrics"]
+
+
 def test_climate_projection_and_scenarios():
     assert "ssp585" in client.get("/api/v1/climate/scenarios").json()["scenarios"]
     r = client.post("/api/v1/climate/projection",
