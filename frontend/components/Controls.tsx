@@ -6,12 +6,14 @@ import { Toggle, SectionLabel } from "@/components/ui";
 import {
   FLOOD_FACTORS,
   FLOOD_FACTOR_LABELS,
+  ML_MODELS,
   type ClimateHorizon,
   type ClimateScenario,
   type ClimateVariable,
   type FloodFactor,
   type FloodWeights,
   type Hazard,
+  type MlModel,
   type RainfallScenario,
   type SpiScale,
 } from "@/lib/types";
@@ -22,10 +24,19 @@ export const DEFAULT_WEIGHTS: FloodWeights = FLOOD_FACTORS.reduce(
   {} as FloodWeights,
 );
 
+export type FloodProduct =
+  | "susceptibility"
+  | "sar"
+  | "road"
+  | "multiyear"
+  | "ml_risk";
+
 export interface FloodControlState {
   weights: FloodWeights;
   rainfall_scenario: RainfallScenario;
-  product: "susceptibility" | "sar" | "road";
+  product: FloodProduct;
+  // ML-risk classifier model selection.
+  ml_model: MlModel;
   // True once the user edits a slider; gates auto-seeding from AHP defaults.
   weightsTouched?: boolean;
 }
@@ -111,19 +122,43 @@ export function FloodControls({
       weightsTouched: true,
     });
 
+  // Per-product run-button label.
+  const runLabel =
+    state.product === "ml_risk"
+      ? "Train model"
+      : state.product === "multiyear"
+        ? "Run trend"
+        : "Run analysis";
+
   return (
     <div className="space-y-5">
       <div>
         <SectionLabel>Product</SectionLabel>
-        <Toggle
-          value={state.product}
-          onChange={(v) => setState({ ...state, product: v })}
-          options={[
-            { value: "susceptibility", label: "Susceptibility" },
-            { value: "sar", label: "SAR extent" },
-            { value: "road", label: "Road risk" },
-          ]}
-        />
+        {/* 5 products — wrap into a 2-row pill grid so labels stay readable
+            on the narrow panel (no horizontal overflow). */}
+        <div className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-surface-muted p-1">
+          {(
+            [
+              { value: "susceptibility", label: "Suscept." },
+              { value: "sar", label: "SAR extent" },
+              { value: "road", label: "Road risk" },
+              { value: "multiyear", label: "Multi-year" },
+              { value: "ml_risk", label: "ML risk" },
+            ] as { value: FloodProduct; label: string }[]
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setState({ ...state, product: opt.value })}
+              className={`rounded-lg px-2 py-2 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/40 ${
+                state.product === opt.value
+                  ? "bg-white text-ink shadow-card"
+                  : "text-ink-subtle hover:text-ink"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {state.product === "susceptibility" && (
@@ -185,7 +220,48 @@ export function FloodControls({
         </p>
       )}
 
-      <RunButton loading={loading} onClick={onRun} />
+      {state.product === "multiyear" && (
+        <p className="note-box text-xs leading-relaxed">
+          Reconstructs annual flooded-area from the JRC Global Surface Water
+          history to reveal the multi-year inundation trend.
+          <span className="mt-1.5 block text-[11px] text-ink-subtle">
+            Live multi-year analysis can take ~30–60s.
+          </span>
+        </p>
+      )}
+
+      {state.product === "ml_risk" && (
+        <div>
+          <SectionLabel>Classifier model</SectionLabel>
+          <select
+            value={state.ml_model}
+            onChange={(e) =>
+              setState({ ...state, ml_model: e.target.value as MlModel })
+            }
+            className="w-full appearance-none rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink shadow-xs transition-colors focus:border-brand-cyan/60 focus:outline-none focus:ring-2 focus:ring-brand-cyan/30"
+          >
+            {ML_MODELS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <p className="note-box mt-3 text-[11px] leading-relaxed">
+            Supervised flood-risk classifier trained on Earth Engine samples,
+            labelled by JRC historical-flood occurrence.
+            <span className="mt-1.5 block text-ink-subtle">
+              Live training can take ~30–50s.
+            </span>
+          </p>
+        </div>
+      )}
+
+      <RunButton loading={loading} onClick={onRun} label={runLabel} />
+      {loading && state.product === "ml_risk" && (
+        <p className="-mt-2 text-center text-[11px] text-ink-subtle">
+          training on Earth Engine samples…
+        </p>
+      )}
     </div>
   );
 }

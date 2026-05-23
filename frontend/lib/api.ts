@@ -22,6 +22,9 @@ import type {
   MitigationRequest,
   MitigationResponse,
   AhpResponse,
+  MultiYearResponse,
+  MlRiskResponse,
+  MlModel,
 } from "./types";
 
 export const API_BASE =
@@ -99,6 +102,17 @@ export const floodSarExtent = (body: { aoi: AOI }) =>
 
 export const floodRoadRisk = (body: { aoi: AOI; depth_threshold?: number }) =>
   post<LayerResponse>("/flood/road-risk", body);
+
+// Multi-year flood-frequency trend (live can take ~30-60s).
+export const floodMultiyear = (aoi: AOI, years?: number) =>
+  post<MultiYearResponse>(
+    "/flood/multiyear",
+    years != null ? { aoi, years } : { aoi },
+  );
+
+// ML flood-risk classifier (live training can take ~30-50s).
+export const floodMlRisk = (aoi: AOI, model: MlModel) =>
+  post<MlRiskResponse>("/flood/ml-risk", { aoi, model });
 
 // ---- ClimateLens ----
 export const getClimateScenarios = () =>

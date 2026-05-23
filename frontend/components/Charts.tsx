@@ -4,6 +4,8 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  Area,
+  AreaChart,
   XAxis,
   YAxis,
   Tooltip,
@@ -13,7 +15,12 @@ import {
   Cell,
   ReferenceLine,
 } from "recharts";
-import type { LayerResponse } from "@/lib/types";
+import type {
+  LayerResponse,
+  MultiYearPoint,
+  MlFeatureImportance,
+} from "@/lib/types";
+import { FLOOD_FACTOR_LABELS, type FloodFactor } from "@/lib/types";
 import { HAZARD_RAMP, rampColor } from "@/lib/colors";
 
 const axisStyle = { fill: "#64748b", fontSize: 11 };
@@ -210,6 +217,148 @@ export function PercentMeter({
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
+    </div>
+  );
+}
+
+// ---- FloodAI multi-year: area-filled flood-frequency trend ----
+export function MultiYearChart({ series }: { series: MultiYearPoint[] }) {
+  if (!series.length) {
+    return (
+      <p className="text-xs text-ink-subtle">No multi-year series available.</p>
+    );
+  }
+  return (
+    <div className="h-52 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={series} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+          <defs>
+            <linearGradient id="multiyearArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.02} />
+            </linearGradient>
+            <linearGradient id="multiyearLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#06b6d4" />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis
+            dataKey="year"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+            interval="preserveStartEnd"
+            minTickGap={24}
+          />
+          <YAxis
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            width={46}
+            domain={["auto", "auto"]}
+          />
+          <Tooltip
+            cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+            content={({ active, payload, label }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">{label}</div>
+                  <div className="text-ink-muted">
+                    {payload[0].value} km² flooded
+                  </div>
+                </div>
+              ) : null
+            }
+          />
+          <Area
+            type="monotone"
+            dataKey="flooded_km2"
+            stroke="url(#multiyearLine)"
+            strokeWidth={2.4}
+            fill="url(#multiyearArea)"
+            dot={{ r: 2.5, fill: "#06b6d4", strokeWidth: 0 }}
+            activeDot={{ r: 4, fill: "#06b6d4" }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---- FloodAI ML-risk: horizontal SHAP feature-importance bars ----
+export function MlFeatureImportanceChart({
+  data,
+  topFactor,
+}: {
+  data: MlFeatureImportance[];
+  topFactor?: string;
+}) {
+  if (!data.length) {
+    return (
+      <p className="text-xs text-ink-subtle">
+        No feature importance available.
+      </p>
+    );
+  }
+  // Sort descending and resolve human labels from FLOOD_FACTOR_LABELS.
+  const rows = [...data]
+    .sort((a, b) => b.importance - a.importance)
+    .map((d) => ({
+      ...d,
+      label:
+        FLOOD_FACTOR_LABELS[d.factor as FloodFactor] ??
+        d.factor.replace(/_/g, " "),
+      isTop: d.factor === topFactor,
+    }));
+  // Height scales with the number of factors (the 11 flood factors).
+  const height = Math.max(180, rows.length * 26 + 16);
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={rows}
+          layout="vertical"
+          margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+          barCategoryGap={4}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+          <XAxis
+            type="number"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={{ stroke: gridStroke }}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tick={{ ...axisStyle, fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            width={104}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(148,163,184,0.12)" }}
+            content={({ active, payload }: any) =>
+              active && payload?.length ? (
+                <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-panel">
+                  <div className="font-semibold text-ink">
+                    {payload[0].payload.label}
+                  </div>
+                  <div className="text-ink-muted">
+                    importance {Number(payload[0].value).toFixed(3)}
+                  </div>
+                </div>
+              ) : null
+            }
+          />
+          <Bar dataKey="importance" radius={[0, 4, 4, 0]}>
+            {rows.map((d, i) => (
+              <Cell key={i} fill={d.isTop ? "#10b981" : "#7dd3fc"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

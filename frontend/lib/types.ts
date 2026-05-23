@@ -83,6 +83,23 @@ export interface LayerResponse {
 
   // infra
   hazard?: string;
+
+  // flood/sar-extent extras (live): a second XYZ tile with a 3-class
+  // severity palette baked in, overlaid above the binary flood extent.
+  severity_url?: string | null;
+}
+
+// Richer stats returned by /flood/sar-extent (live mode). All optional —
+// demo mode returns the basic flood-extent stats only.
+export interface SarStats {
+  flooded_area_km2?: number;
+  flooded_pct?: number;
+  population_exposed?: number;
+  cropland_flooded_ha?: number;
+  crop_loss_usd?: number;
+  builtup_flooded_ha?: number;
+  threshold_db?: number;
+  [key: string]: any;
 }
 
 export interface EarthdataStatus {
@@ -195,6 +212,64 @@ export interface SusceptibilityRequest {
   weights?: Partial<FloodWeights>;
   rainfall_scenario: RainfallScenario;
   ahp_matrix?: number[][];
+}
+
+// ---- FloodAI: multi-year flood-frequency trend ----
+// POST /flood/multiyear -> { aoi, years? }
+export interface MultiYearPoint {
+  year: number;
+  flooded_km2: number;
+}
+
+export type TrendDirection = "increasing" | "decreasing" | "stable";
+
+export interface MultiYearStats {
+  trend_km2_per_year: number;
+  trend: TrendDirection;
+  peak_year: number;
+  peak_km2: number;
+  area_km2: number;
+}
+
+export interface MultiYearResponse {
+  product: "multiyear";
+  source: Source;
+  series: MultiYearPoint[];
+  stats: MultiYearStats;
+}
+
+// ---- FloodAI: ML flood-risk classifier ----
+// POST /flood/ml-risk -> { aoi, model }
+export type MlModel = "gbm" | "xgboost" | "random_forest";
+
+export const ML_MODELS: { value: MlModel; label: string }[] = [
+  { value: "gbm", label: "GBM" },
+  { value: "xgboost", label: "XGBoost" },
+  { value: "random_forest", label: "Random Forest" },
+];
+
+export interface MlMetrics {
+  cv_accuracy: number;
+  cv_accuracy_std: number;
+  cv_auc: number;
+  n_samples: number;
+  positive_rate: number;
+}
+
+export interface MlFeatureImportance {
+  factor: string;
+  importance: number;
+}
+
+export interface MlRiskResponse {
+  product: "ml_risk";
+  source: Source;
+  model: MlModel;
+  metrics: MlMetrics;
+  feature_importance: MlFeatureImportance[];
+  top_factor: string;
+  explainability: string;
+  validation: string;
 }
 
 export type ClimateScenario = "ssp245" | "ssp585";

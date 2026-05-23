@@ -43,6 +43,9 @@ interface MapViewProps {
   // FloodAI per-factor XYZ tile layers (live mode only) + which are toggled on
   factorUrls?: Partial<Record<FloodFactor, string>> | null;
   activeFactors?: FloodFactor[];
+  // SAR severity XYZ tile (live) + whether the user has it toggled on
+  severityUrl?: string | null;
+  severityOn?: boolean;
   // optional: click a state polygon to select it as AOI
   onSelectState?: (name: string, bbox: [number, number, number, number]) => void;
   // change this value to force the map to recompute its size (e.g. after a
@@ -274,6 +277,8 @@ export default function MapView({
   route,
   factorUrls,
   activeFactors,
+  severityUrl,
+  severityOn,
   onSelectState,
   invalidateKey,
 }: MapViewProps) {
@@ -416,6 +421,12 @@ export default function MapView({
           if (!url) return null;
           return <TileLayer key={`factor-${f}`} url={url} opacity={0.85} />;
         })}
+
+      {/* SAR severity overlay (live) — 3-class palette baked into the tile,
+          drawn above the binary flood extent when toggled on */}
+      {severityOn && severityUrl && (
+        <TileLayer key={`severity-${severityUrl}`} url={severityUrl} opacity={0.85} />
+      )}
 
       {/* grid / vector layer */}
       {layer?.grid && (

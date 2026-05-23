@@ -25,6 +25,8 @@ import {
   climateProjection,
   droughtSpi,
   droughtVegetation,
+  floodMlRisk,
+  floodMultiyear,
   floodRoadRisk,
   floodSarExtent,
   floodSusceptibility,
@@ -39,6 +41,8 @@ import type {
   FloodWeights,
   LayerResponse,
   ModuleId,
+  MultiYearResponse,
+  MlRiskResponse,
   PointFeatureCollection,
   LineFeatureCollection,
 } from "@/lib/types";
@@ -92,6 +96,7 @@ export default function Dashboard() {
     weights: { ...DEFAULT_WEIGHTS },
     rainfall_scenario: "normal",
     product: "susceptibility",
+    ml_model: "gbm",
   });
   const [climate, setClimate] = useState<ClimateControlState>({
     scenario: "ssp585",
@@ -109,6 +114,13 @@ export default function Dashboard() {
 
   // --- per-factor map overlays (live mode only) ---
   const [activeFactors, setActiveFactors] = useState<FloodFactor[]>([]);
+
+  // --- SAR severity overlay toggle (live mode only) ---
+  const [severityOn, setSeverityOn] = useState(false);
+
+  // --- FloodAI panel-only products (no map tile) ---
+  const [multiYear, setMultiYear] = useState<MultiYearResponse | null>(null);
+  const [mlRisk, setMlRisk] = useState<MlRiskResponse | null>(null);
 
   // --- layer + request state ---
   const [layer, setLayer] = useState<LayerResponse | null>(null);
@@ -155,8 +167,44 @@ export default function Dashboard() {
   const runAnalysis = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // Per-factor overlays belong to a specific result; reset on each run.
+    // Per-factor + severity overlays belong to a specific result; reset on run.
     setActiveFactors([]);
+    setSeverityOn(false);
+
+    // FloodAI panel-only products: multi-year trend + ML-risk classifier.
+    // These return their own response shapes (no LayerResponse / map tile).
+    if (moduleId === "flood" && flood.product === "multiyear") {
+      setLayer(null);
+      setMlRisk(null);
+      try {
+        const res = await floodMultiyear(aoi);
+        setMultiYear(res);
+      } catch (e: any) {
+        setError(e?.detail || e?.message || "Multi-year analysis failed.");
+        setMultiYear(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    if (moduleId === "flood" && flood.product === "ml_risk") {
+      setLayer(null);
+      setMultiYear(null);
+      try {
+        const res = await floodMlRisk(aoi, flood.ml_model);
+        setMlRisk(res);
+      } catch (e: any) {
+        setError(e?.detail || e?.message || "Model training failed.");
+        setMlRisk(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Tile / grid based products clear any panel-only results.
+    setMultiYear(null);
+    setMlRisk(null);
     try {
       let res: LayerResponse;
       if (moduleId === "flood") {
@@ -207,6 +255,9 @@ export default function Dashboard() {
     setShelters(null);
     setRoute(null);
     setActiveFactors([]);
+    setSeverityOn(false);
+    setMultiYear(null);
+    setMlRisk(null);
   }
 
   function selectLocation(loc: LocationPreset) {
@@ -251,6 +302,10 @@ export default function Dashboard() {
     );
   }
 
+  function toggleSeverity() {
+    setSeverityOn((on) => !on);
+  }
+
   function switchModule(id: ModuleId) {
     setModuleId(id);
     // On mobile, surface the panel when a module is selected.
@@ -289,6 +344,10 @@ export default function Dashboard() {
         ahpDefaults={ahpDefaults}
         activeFactors={activeFactors}
         onToggleFactor={toggleFactor}
+        multiYear={multiYear}
+        mlRisk={mlRisk}
+        severityOn={severityOn}
+        onToggleSeverity={toggleSeverity}
       />
     );
 
@@ -325,6 +384,8 @@ export default function Dashboard() {
             onSelectState={selectStateFromMap}
             factorUrls={layer?.factor_urls ?? null}
             activeFactors={activeFactors}
+            severityUrl={layer?.severity_url ?? null}
+            severityOn={severityOn}
             invalidateKey={`${sheetOpen}-${moduleId}`}
           />
 

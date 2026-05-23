@@ -9,11 +9,23 @@ import {
   ChevronDown,
   Layers,
   Droplets,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Brain,
+  Trophy,
+  Users,
+  Sprout,
+  Building2,
+  Eye,
 } from "lucide-react";
 import type {
   FloodFactor,
   LayerResponse,
   ModuleId,
+  MultiYearResponse,
+  MlRiskResponse,
+  TrendDirection,
 } from "@/lib/types";
 import { FLOOD_FACTORS, FLOOD_FACTOR_LABELS } from "@/lib/types";
 import {
@@ -22,12 +34,15 @@ import {
   Legend,
   LegendBar,
   SectionLabel,
+  Spinner,
 } from "@/components/ui";
 import {
   ClimateTimeseries,
   FloodClassChart,
   SpiGauge,
   PercentMeter,
+  MultiYearChart,
+  MlFeatureImportanceChart,
 } from "@/components/Charts";
 
 // Susceptibility class labels (1-5) for the mean_class headline.
@@ -277,6 +292,329 @@ function ReliabilityCard({ layer }: { layer: LayerResponse }) {
   );
 }
 
+// ---- SAR severity toggle + extra exposure stat cards (live) ----
+const TREND_STYLE: Record<
+  TrendDirection,
+  { badge: string; Icon: typeof TrendingUp }
+> = {
+  increasing: { badge: "bg-rose-500/10 text-rose-700", Icon: TrendingUp },
+  decreasing: { badge: "bg-emerald-500/10 text-emerald-700", Icon: TrendingDown },
+  stable: { badge: "bg-slate-500/10 text-slate-600", Icon: Minus },
+};
+
+function fmtUsd(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}k`;
+  return `$${v.toLocaleString()}`;
+}
+
+function ExposureCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+      <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+        <Icon size={12} /> {label}
+      </div>
+      <div className="mt-1 text-lg font-semibold tabular-nums text-ink">
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 text-[11px] text-ink-muted">{sub}</div>}
+    </div>
+  );
+}
+
+// Severity overlay toggle + the richer SAR exposure stat cards (live only).
+function SarExtras({
+  layer,
+  severityOn,
+  onToggleSeverity,
+}: {
+  layer: LayerResponse;
+  severityOn?: boolean;
+  onToggleSeverity?: () => void;
+}) {
+  const s = layer.stats ?? {};
+  const hasSeverity = !!layer.severity_url;
+  const pop = s.population_exposed;
+  const cropHa = s.cropland_flooded_ha;
+  const cropUsd = s.crop_loss_usd;
+  const builtHa = s.builtup_flooded_ha;
+  const hasExtra =
+    typeof pop === "number" ||
+    typeof cropHa === "number" ||
+    typeof builtHa === "number";
+
+  if (!hasSeverity && !hasExtra) return null;
+
+  return (
+    <div className="space-y-4">
+      {hasSeverity && (
+        <button
+          onClick={onToggleSeverity}
+          aria-pressed={!!severityOn}
+          className={`flex w-full items-center gap-2 rounded-xl border px-3.5 py-3 text-left transition ${
+            severityOn
+              ? "border-brand-cyan/50 bg-brand-cyan/10"
+              : "border-line bg-surface-subtle hover:border-brand-cyan/40"
+          }`}
+        >
+          <Eye
+            size={15}
+            className={severityOn ? "text-cyan-700" : "text-ink-subtle"}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-ink">
+              {severityOn ? "Severity overlay on" : "Show severity"}
+            </div>
+            <div className="text-[10px] text-ink-subtle">
+              3-class flood depth · low → high
+            </div>
+          </div>
+          <span className="flex shrink-0 items-center gap-1">
+            {["#ffffb2", "#fd8d3c", "#bd0026"].map((c) => (
+              <span
+                key={c}
+                className="h-3 w-3 rounded-sm ring-1 ring-slate-900/10"
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </span>
+        </button>
+      )}
+
+      {hasExtra && (
+        <div className="grid grid-cols-2 gap-2.5">
+          {typeof pop === "number" && (
+            <ExposureCard
+              icon={Users}
+              label="Population exposed"
+              value={pop.toLocaleString()}
+            />
+          )}
+          {typeof cropHa === "number" && (
+            <ExposureCard
+              icon={Sprout}
+              label="Cropland flooded"
+              value={`${cropHa.toLocaleString()} ha`}
+              sub={
+                typeof cropUsd === "number"
+                  ? `${fmtUsd(cropUsd)} crop loss`
+                  : undefined
+              }
+            />
+          )}
+          {typeof builtHa === "number" && (
+            <ExposureCard
+              icon={Building2}
+              label="Built-up flooded"
+              value={`${builtHa.toLocaleString()} ha`}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Multi-year flood-frequency panel (no map tile) ----
+export function MultiYearPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: MultiYearResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading)
+    return <Spinner label="Reconstructing multi-year flood trend…" />;
+  if (!data) return null;
+
+  const { series, stats } = data;
+  const ts = TREND_STYLE[stats.trend] ?? TREND_STYLE.stable;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-ink">
+          Multi-year flood trend
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      {/* trend badge + peak callout */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${ts.badge}`}
+        >
+          <ts.Icon size={13} />
+          {stats.trend} · {stats.trend_km2_per_year} km²/yr
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+        <SectionLabel>
+          <span className="inline-flex items-center gap-1.5">
+            <BarChart3 size={12} /> Annual flooded area (km²)
+          </span>
+        </SectionLabel>
+        <MultiYearChart series={series} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+            <Droplets size={12} /> Peak flooding
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="gradient-text text-2xl font-bold tabular-nums">
+              {stats.peak_km2.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-ink-muted">km²</span>
+          </div>
+          <div className="mt-0.5 text-[11px] text-ink-muted">
+            in {stats.peak_year}
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <div className="text-[11px] text-ink-subtle">AOI area</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-ink">
+            {stats.area_km2.toLocaleString()} km²
+          </div>
+        </div>
+      </div>
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        {data.source === "demo"
+          ? "Deterministic demo series. The same AOI always returns the same trend."
+          : "Reconstructed live from the JRC Global Surface Water history."}
+      </p>
+    </div>
+  );
+}
+
+// ---- ML flood-risk classifier panel (no map tile) ----
+export function MlRiskPanel({
+  data,
+  loading,
+  error,
+}: {
+  data: MlRiskResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading)
+    return (
+      <div className="space-y-2">
+        <Spinner label="Training classifier…" />
+        <p className="text-center text-[11px] text-ink-subtle">
+          training on Earth Engine samples…
+        </p>
+      </div>
+    );
+  if (!data) return null;
+
+  const m = data.metrics;
+  const topLabel =
+    FLOOD_FACTOR_LABELS[data.top_factor as FloodFactor] ??
+    data.top_factor.replace(/_/g, " ");
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Brain size={15} className="text-brand-cyan" /> ML flood-risk
+        </span>
+        <SourceBadge source={data.source} />
+      </div>
+
+      {/* metric stat cards */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">CV accuracy</div>
+          <div className="mt-1 gradient-text text-lg font-semibold tabular-nums">
+            {(m.cv_accuracy * 100).toFixed(1)}%
+          </div>
+          <div className="mt-0.5 text-[10px] text-ink-muted">
+            ± {(m.cv_accuracy_std * 100).toFixed(1)}%
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">CV AUC</div>
+          <div className="mt-1 gradient-text text-lg font-semibold tabular-nums">
+            {m.cv_auc.toFixed(3)}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Samples</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">
+            {m.n_samples.toLocaleString()}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Positive rate</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">
+            {(m.positive_rate * 100).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      {/* top factor highlight */}
+      <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+        <Trophy size={15} className="shrink-0 text-emerald-600" />
+        <div className="text-xs text-emerald-700">
+          Most predictive factor:{" "}
+          <span className="font-bold">{topLabel}</span>
+        </div>
+      </div>
+
+      {/* feature importance bars */}
+      <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+        <SectionLabel>
+          <span className="inline-flex items-center gap-1.5">
+            <BarChart3 size={12} /> Feature importance
+          </span>
+        </SectionLabel>
+        <MlFeatureImportanceChart
+          data={data.feature_importance}
+          topFactor={data.top_factor}
+        />
+        <p className="mt-2.5 text-[10px] leading-relaxed text-ink-subtle">
+          SHAP feature importance (Lundberg &amp; Lee, 2017) · label = JRC
+          historical-flood occurrence · {data.validation}
+        </p>
+      </div>
+
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        {data.explainability}
+      </p>
+    </div>
+  );
+}
+
 function ModuleChart({
   moduleId,
   layer,
@@ -314,11 +652,16 @@ export function ResultPanel({
   layer,
   activeFactors,
   onToggleFactor,
+  severityOn,
+  onToggleSeverity,
 }: {
   moduleId: ModuleId;
   layer: LayerResponse;
   activeFactors?: FloodFactor[];
   onToggleFactor?: (f: FloodFactor) => void;
+  // SAR severity overlay toggle
+  severityOn?: boolean;
+  onToggleSeverity?: () => void;
 }) {
   const isRamp = layer.legend.some(
     (l) => !l.label || l.label.trim() === "",
@@ -327,6 +670,7 @@ export function ResultPanel({
   const hasChart = !!ct;
   const isFloodSusc =
     moduleId === "flood" && layer.product === "susceptibility";
+  const isSar = moduleId === "flood" && layer.product === "sar_extent";
 
   return (
     <div className="space-y-5">
@@ -367,6 +711,15 @@ export function ResultPanel({
       {isFloodSusc && <FloodHeadline layer={layer} />}
 
       <StatGrid stats={layer.stats} />
+
+      {/* SAR: severity overlay toggle + richer exposure stat cards (live) */}
+      {isSar && (
+        <SarExtras
+          layer={layer}
+          severityOn={severityOn}
+          onToggleSeverity={onToggleSeverity}
+        />
+      )}
 
       {moduleId === "flood" && <ReliabilityCard layer={layer} />}
 

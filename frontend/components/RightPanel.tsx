@@ -12,7 +12,11 @@ import {
   type FloodControlState,
   type InfraControlState,
 } from "@/components/Controls";
-import { ResultPanel } from "@/components/ResultPanel";
+import {
+  ResultPanel,
+  MultiYearPanel,
+  MlRiskPanel,
+} from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 import type {
@@ -20,6 +24,8 @@ import type {
   FloodWeights,
   LayerResponse,
   ModuleId,
+  MultiYearResponse,
+  MlRiskResponse,
 } from "@/lib/types";
 
 export interface RightPanelProps {
@@ -41,6 +47,12 @@ export interface RightPanelProps {
   ahpDefaults?: FloodWeights | null;
   activeFactors?: FloodFactor[];
   onToggleFactor?: (f: FloodFactor) => void;
+  // FloodAI multi-year + ML-risk products (no map tile; rendered as panels)
+  multiYear?: MultiYearResponse | null;
+  mlRisk?: MlRiskResponse | null;
+  // SAR severity overlay toggle
+  severityOn?: boolean;
+  onToggleSeverity?: () => void;
 }
 
 export function RightPanel(props: RightPanelProps) {
@@ -61,8 +73,17 @@ export function RightPanel(props: RightPanelProps) {
     ahpDefaults,
     activeFactors,
     onToggleFactor,
+    multiYear,
+    mlRisk,
+    severityOn,
+    onToggleSeverity,
   } = props;
   const meta = moduleMeta(moduleId);
+
+  // FloodAI products that render a dedicated panel instead of a LayerResponse.
+  const floodProduct = flood.product;
+  const isMultiYear = moduleId === "flood" && floodProduct === "multiyear";
+  const isMlRisk = moduleId === "flood" && floodProduct === "ml_risk";
 
   return (
     <div className="flex h-full flex-col">
@@ -119,29 +140,79 @@ export function RightPanel(props: RightPanelProps) {
 
         {/* results */}
         <div className="border-t border-line pt-5">
-          {error && <ErrorNote message={error} />}
-          {!error && loading && !layer && <ResultSkeleton />}
-          {!error && layer && (
-            <motion.div
-              key={`${layer.module}-${layer.product}-${layer.source}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ResultPanel
-                moduleId={moduleId}
-                layer={layer}
-                activeFactors={activeFactors}
-                onToggleFactor={onToggleFactor}
+          {/* Multi-year + ML-risk render dedicated panels (handle their own
+              loading / error / empty states). */}
+          {isMultiYear ? (
+            multiYear || loading || error ? (
+              <motion.div
+                key={`multiyear-${multiYear?.source ?? "pending"}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <MultiYearPanel
+                  data={multiYear ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No results yet"
+                message="Run the multi-year trend to see annual flooded-area over time."
               />
-            </motion.div>
-          )}
-          {!error && !loading && !layer && (
-            <EmptyState
-              icon={BarChart3}
-              title="No results yet"
-              message="Configure the controls above and run an analysis to see results."
-            />
+            )
+          ) : isMlRisk ? (
+            mlRisk || loading || error ? (
+              <motion.div
+                key={`mlrisk-${mlRisk?.model ?? "pending"}-${mlRisk?.source ?? ""}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <MlRiskPanel
+                  data={mlRisk ?? null}
+                  loading={loading}
+                  error={error}
+                />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No model yet"
+                message="Pick a model and train it to see metrics and feature importance."
+              />
+            )
+          ) : (
+            <>
+              {error && <ErrorNote message={error} />}
+              {!error && loading && !layer && <ResultSkeleton />}
+              {!error && layer && (
+                <motion.div
+                  key={`${layer.module}-${layer.product}-${layer.source}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ResultPanel
+                    moduleId={moduleId}
+                    layer={layer}
+                    activeFactors={activeFactors}
+                    onToggleFactor={onToggleFactor}
+                    severityOn={severityOn}
+                    onToggleSeverity={onToggleSeverity}
+                  />
+                </motion.div>
+              )}
+              {!error && !loading && !layer && (
+                <EmptyState
+                  icon={BarChart3}
+                  title="No results yet"
+                  message="Configure the controls above and run an analysis to see results."
+                />
+              )}
+            </>
           )}
         </div>
       </div>
