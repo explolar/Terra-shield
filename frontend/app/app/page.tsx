@@ -589,7 +589,7 @@ export default function Dashboard() {
           {/* Mobile: floating button to open the controls / results sheet */}
           <button
             onClick={() => setSheetOpen(true)}
-            className="btn-primary fixed bottom-[76px] right-4 z-[1100] !min-h-[48px] rounded-full px-5 shadow-float lg:hidden"
+            className="btn-primary fixed bottom-[76px] right-4 z-[1100] !min-h-[48px] rounded-full px-5 shadow-float md:hidden"
             aria-label="Open controls and results"
           >
             <SlidersHorizontal size={16} />
@@ -598,8 +598,8 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* right panel — desktop only */}
-        <aside className="z-20 hidden w-[360px] shrink-0 flex-col border-l border-line bg-white lg:flex">
+        {/* right panel — docked on tablet/desktop (md+); FAB sheet below md */}
+        <aside className="z-20 hidden w-[330px] shrink-0 flex-col border-l border-line bg-white md:flex xl:w-[380px]">
           {panelContent}
         </aside>
       </div>
@@ -615,7 +615,7 @@ export default function Dashboard() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={() => setSheetOpen(false)}
-              className="fixed inset-0 z-[1200] bg-slate-900/30 backdrop-blur-[2px] lg:hidden"
+              className="fixed inset-0 z-[1200] bg-slate-900/30 backdrop-blur-[2px] md:hidden"
             />
             <motion.div
               key="sheet"
@@ -625,7 +625,7 @@ export default function Dashboard() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 320 }}
-              className="pb-safe fixed inset-x-0 bottom-0 z-[1300] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-white shadow-float lg:hidden"
+              className="pb-safe fixed inset-x-0 bottom-0 z-[1300] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-white shadow-float md:hidden"
             >
               {/* grab handle + close (the panel renders its own titled header below) */}
               <div className="relative flex items-center justify-center py-2">
