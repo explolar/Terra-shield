@@ -102,6 +102,11 @@ class ForecastRequest(BaseModel):
     days: int = Field(default=7, ge=1, le=16)
 
 
+# ---- GroundwaterAI (GRACE) ----------------------------------------------- #
+class GroundwaterRequest(BaseModel):
+    aoi: AOI
+
+
 # ---- GeoCopilot ----------------------------------------------------------- #
 class CopilotRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)

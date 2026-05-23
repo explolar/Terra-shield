@@ -19,6 +19,7 @@ from .api.routes import (
     earthdata,
     flood,
     forecast,
+    groundwater,
     health,
     infra,
     optimize,
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
             {"name": "InfraRisk", "description": "Infrastructure & population exposure."},
             {"name": "ResilienceOR", "description": "Operations research: AHP, TOPSIS, shelter siting, evacuation routing, mitigation."},
             {"name": "WeatherCast", "description": "Short-range weather & rainfall forecast (Open-Meteo)."},
+            {"name": "GroundwaterAI", "description": "GRACE terrestrial water storage & groundwater depletion."},
             {"name": "GeoCopilot", "description": "Natural-language climate-risk assistant (Llama)."},
             {"name": "EarthData Engine", "description": "GEE status, AOI, datasets."},
             {"name": "system", "description": "Health & introspection."},
@@ -69,7 +71,7 @@ def create_app() -> FastAPI:
 
     prefix = settings.api_prefix
     for module in (health, earthdata, flood, climate, drought, infra, optimize,
-                   forecast, copilot):
+                   forecast, groundwater, copilot):
         app.include_router(module.router, prefix=prefix)
 
     @app.get("/", tags=["system"])
@@ -79,7 +81,8 @@ def create_app() -> FastAPI:
             "tagline": "The AI Operating System for Climate Risk & Resilience",
             "docs": "/docs",
             "api": prefix,
-            "modules": ["flood", "climate", "drought", "infra", "optimize", "copilot", "earthdata"],
+            "modules": ["flood", "climate", "drought", "infra", "optimize",
+                        "weather", "groundwater", "copilot", "earthdata"],
             "earthdata_engine": gee.mode(),
         }
 

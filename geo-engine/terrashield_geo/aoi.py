@@ -9,13 +9,14 @@ from typing import Any
 
 _EARTH_RADIUS_KM = 6371.0088
 MAX_AOI_AREA_KM2 = 50_000.0  # guard rail against accidental continent-sized AOIs
+COARSE_MAX_AREA_KM2 = 1_000_000.0  # for regional-scale coarse data (GRACE, CMIP6)
 
 
 class AOIError(ValueError):
     """Raised when an AOI is malformed or out of bounds."""
 
 
-def normalize(aoi: dict[str, Any]) -> dict[str, Any]:
+def normalize(aoi: dict[str, Any], max_area_km2: float = MAX_AOI_AREA_KM2) -> dict[str, Any]:
     """Validate and normalize an AOI dict.
 
     Accepts either::
@@ -24,6 +25,8 @@ def normalize(aoi: dict[str, Any]) -> dict[str, Any]:
         {"type": "geojson", "geojson": <Polygon Feature/Geometry>}
 
     Returns a dict with ``bbox``, ``centroid``, ``area_km2`` and the original.
+    ``max_area_km2`` guards against oversized AOIs; coarse modules (GRACE
+    groundwater, CMIP6 climate) raise it since their data is regional-scale.
     """
     if not isinstance(aoi, dict) or "type" not in aoi:
         raise AOIError("AOI must be a dict with a 'type' of 'bbox' or 'geojson'")
@@ -38,9 +41,9 @@ def normalize(aoi: dict[str, Any]) -> dict[str, Any]:
         raise AOIError(f"unknown AOI type: {kind!r}")
 
     area = bbox_area_km2(bbox)
-    if area > MAX_AOI_AREA_KM2:
+    if area > max_area_km2:
         raise AOIError(
-            f"AOI too large ({area:,.0f} km²). Max is {MAX_AOI_AREA_KM2:,.0f} km²."
+            f"AOI too large ({area:,.0f} km²). Max is {max_area_km2:,.0f} km²."
         )
 
     cx = (bbox[0] + bbox[2]) / 2

@@ -1,7 +1,9 @@
 """Demo-mode behaviour of the analytic modules (no GEE required)."""
 import numpy as np
 
-from terrashield_geo import climate, demo, drought, flood, flood_factors, infra, ml_flood
+from terrashield_geo import (
+    climate, demo, drought, flood, flood_factors, groundwater, infra, ml_flood,
+)
 
 AOI = {"type": "bbox", "bbox": [73.9, 17.6, 74.3, 18.0]}
 
@@ -55,6 +57,13 @@ def test_drought_spi_in_range():
     r = drought.spi(AOI, 3)
     assert -3 <= r["stats"]["mean_spi"] <= 3
     assert r["stats"]["class"]
+
+
+def test_groundwater_storage():
+    r = groundwater.groundwater(AOI)
+    assert "depletion_trend_cm_yr" in r["stats"]
+    assert r["stats"]["stress_class"]
+    assert len(r["series"]) > 0
 
 
 def test_infra_exposure_subset_of_total():

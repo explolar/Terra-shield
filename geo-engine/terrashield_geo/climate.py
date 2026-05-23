@@ -48,7 +48,7 @@ def projection(
     horizon: str = "2050s",
     model: str = "ensemble",
 ) -> dict[str, Any]:
-    norm = aoi_mod.normalize(aoi)
+    norm = aoi_mod.normalize(aoi, aoi_mod.COARSE_MAX_AREA_KM2)  # CMIP6 is regional-scale
     if scenario not in SCENARIOS:
         scenario = "ssp585"
     if variable not in VARIABLES:
@@ -216,7 +216,7 @@ def extremes(aoi, scenario="ssp585", horizon="2050s", model="ensemble") -> dict[
     an amplification factor. Deterministic; full daily ETCCDI is on the roadmap."""
     import numpy as np
 
-    norm = aoi_mod.normalize(aoi)
+    norm = aoi_mod.normalize(aoi, aoi_mod.COARSE_MAX_AREA_KM2)  # CMIP6 is regional-scale
     if scenario not in SCENARIOS:
         scenario = "ssp585"
     if horizon not in HORIZONS:

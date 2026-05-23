@@ -1,0 +1,137 @@
+"""GroundwaterAI — terrestrial water-storage & groundwater-depletion analytics.
+
+Inspired by groundwater-intelligence products (e.g. SmartBhujal's GWFlowAI), this
+module brings water security into TerraShield using NASA GRACE / GRACE-FO.
+
+  * storage anomaly  — GRACE liquid-water-equivalent thickness (cm vs 2004-2009)
+  * depletion trend  — linear trend of the storage anomaly (cm/yr); negative =
+                       depletion (cf. Rodell et al., 2009/2018; Famiglietti, 2014)
+  * recharge proxy   — CHIRPS rainfall minus MODIS evapotranspiration (mm/yr)
+  * stress class     — from the depletion trend
+
+Live path uses Earth Engine; demo path is deterministic.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from . import aoi as aoi_mod
+from . import demo, gee, tiles
+
+log = logging.getLogger("terrashield.geo.groundwater")
+
+# Depletion-trend classes (cm/yr of terrestrial water storage).
+STRESS_CLASSES = [
+    ("Severe depletion", -1.5, "#67000d"),
+    ("High depletion", -0.8, "#cb181d"),
+    ("Moderate depletion", -0.3, "#fb6a4a"),
+    ("Stable", 0.3, "#fee08b"),
+    ("Recharging", 100.0, "#1a9850"),
+]
+
+
+def _classify(trend: float) -> str:
+    for label, thr, _c in STRESS_CLASSES:
+        if trend <= thr:
+            return label
+    return "Recharging"
+
+
+def groundwater(aoi: dict[str, Any]) -> dict[str, Any]:
+    norm = aoi_mod.normalize(aoi, aoi_mod.COARSE_MAX_AREA_KM2)  # GRACE is regional-scale
+    if gee.is_live():
+        try:
+            return _groundwater_live(norm)
+        except Exception as exc:  # pragma: no cover
+            log.warning("groundwater live failed, demo fallback: %s", exc)
+    return _groundwater_demo(norm)
+
+
+def _groundwater_demo(norm) -> dict[str, Any]:
+    import numpy as np
+
+    bbox = norm["bbox"]
+    field = demo.smooth_field(bbox, 20, salt="groundwater:tws")
+    anomaly = (field - 0.55) * 30.0  # cm, roughly [-16, +13]
+    grid = demo.field_to_grid(bbox, anomaly.round(1), value_key="anomaly_cm")
+    rng = np.random.default_rng(abs(hash(tuple(round(b, 3) for b in bbox))) % (2**32))
+    trend = float(np.clip(rng.normal(-0.7, 0.6), -2.5, 1.0))  # most regions depleting
+    years = list(range(2004, 2024))
+    base = float(anomaly.mean())
+    series = [{"year": y, "anomaly_cm": round(base + trend * (y - 2004) + rng.normal(0, 1.2), 1)}
+              for y in years]
+    return {
+        "module": "groundwater", "product": "storage", "source": "demo",
+        "tile_url": None, "grid": grid,
+        "legend": [{"label": l, "color": c} for l, _, c in STRESS_CLASSES],
+        "series": series,
+        "stats": {
+            "mean_anomaly_cm": round(float(anomaly.mean()), 1),
+            "depletion_trend_cm_yr": round(trend, 2),
+            "stress_class": _classify(trend),
+            "recharge_proxy_mm_yr": round(float(rng.uniform(-200, 400)), 0),
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": bbox, "centroid": norm["centroid"]},
+    }
+
+
+def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
+    ee = gee.get_ee()
+    geom = aoi_mod.to_ee_geometry(norm)
+    # GRACE V04 ships three solutions (CSR/GFZ/JPL); the recommended estimate is
+    # their ensemble mean.
+    _bands = ["lwe_thickness_csr", "lwe_thickness_gfz", "lwe_thickness_jpl"]
+    col = ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/LAND").map(
+        lambda img: img.select(_bands).reduce(ee.Reducer.mean()).rename("lwe")
+            .copyProperties(img, ["system:time_start"])
+    )
+
+    # Region-mean monthly anomaly series -> linear trend (cm/yr).
+    def to_feat(img):
+        v = img.reduceRegion(ee.Reducer.mean(), geom, 50000,
+                             maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        t = img.date().difference(ee.Date("2004-01-01"), "year")
+        return ee.Feature(None, {"t": t, "v": v})
+
+    fc = ee.FeatureCollection(col.map(to_feat)).filter(ee.Filter.notNull(["v"]))
+    fit = fc.reduceColumns(ee.Reducer.linearFit(), ["t", "v"])
+    trend = float(ee.Number(fit.get("scale")).getInfo() or 0.0)  # cm/yr
+
+    latest = ee.Image(col.sort("system:time_start", False).first())
+    latest_val = ee.Number(latest.reduceRegion(
+        ee.Reducer.mean(), geom, 50000, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+    mean_anom = float((latest_val.getInfo() or 0.0))
+
+    tile_url = tiles.image_tile_url(
+        latest.clip(geom),
+        {"min": -20, "max": 20, "palette": ["#67000d", "#fb6a4a", "#ffffbf", "#74add1", "#313695"]})
+
+    # Recharge proxy: CHIRPS annual rainfall - MODIS ET (mm/yr).
+    try:
+        rain = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                .filterDate("2022-01-01", "2023-01-01").select("precipitation").sum())
+        et = (ee.ImageCollection("MODIS/061/MOD16A2").filterDate("2022-01-01", "2023-01-01")
+              .select("ET").sum().multiply(0.1))  # 0.1 mm scale
+        recharge = ee.Number(rain.subtract(et).reduceRegion(
+            ee.Reducer.mean(), geom, 5000, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+        recharge_val = round(float(recharge.getInfo() or 0.0), 0)
+    except Exception:
+        recharge_val = None
+
+    return {
+        "module": "groundwater", "product": "storage", "source": "live",
+        "tile_url": tile_url, "grid": None,
+        "legend": [{"label": l, "color": c} for l, _, c in STRESS_CLASSES],
+        "series": [],
+        "stats": {
+            "mean_anomaly_cm": round(mean_anom, 1),
+            "depletion_trend_cm_yr": round(trend, 2),
+            "stress_class": _classify(trend),
+            "recharge_proxy_mm_yr": recharge_val,
+            "dataset": "NASA GRACE/GRACE-FO MASS_GRIDS_V04",
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+    }

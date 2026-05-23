@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from terrashield_geo import aoi as geo_aoi
-from terrashield_geo import climate, drought, flood, gee, infra, ml_flood, optimize
+from terrashield_geo import climate, drought, flood, gee, groundwater, infra, ml_flood, optimize
 
 from . import llm
 
@@ -86,6 +86,11 @@ CITATIONS = {
         "Freeman (1977), betweenness centrality, Sociometry",
     ],
     "weather": ["Open-Meteo (2023), open-data weather forecast API (CC-BY 4.0)"],
+    "groundwater": [
+        "Rodell et al. (2018), Emerging trends in global freshwater availability, Nature",
+        "Famiglietti (2014), The global groundwater crisis, Nature Climate Change",
+        "Tapley et al. (2004), GRACE mission, Science",
+    ],
     "optimize": [
         "Saaty (1980), Analytic Hierarchy Process",
         "Church & ReVelle (1974), Maximal Covering Location Problem, Papers Reg. Sci.",
@@ -159,6 +164,10 @@ def _tool_climate_extremes(aoi, e):
 
 def _tool_infra_criticality(aoi, e):
     return infra.road_criticality(aoi)
+
+
+def _tool_groundwater(aoi, e):
+    return groundwater.groundwater(aoi)
 
 
 def _tool_weather(aoi, e):
@@ -236,6 +245,8 @@ TOOLS: dict[str, dict[str, Any]] = {
                           "desc": "Road-network criticality (edge betweenness)"},
     "weather_forecast": {"fn": _tool_weather, "module": "weather",
                          "desc": "Short-range weather & rainfall forecast (Open-Meteo)"},
+    "groundwater": {"fn": _tool_groundwater, "module": "groundwater",
+                    "desc": "GRACE groundwater storage & depletion trend"},
     "optimize_shelters": {"fn": _tool_opt_shelters, "module": "optimize",
                           "desc": "Relief-shelter siting (Maximal Covering Location)"},
     "optimize_evacuation": {"fn": _tool_opt_evacuation, "module": "optimize",
@@ -324,6 +335,9 @@ def _choose_tool(q: str) -> str:
         return "optimize_evacuation"
     if has("budget", "mitigation", "invest", "spend", "prioriti"):
         return "optimize_mitigation"
+    if has("groundwater", "aquifer", "water table", "bhujal", "grace", "water storage",
+            "depletion", "borewell", "well water"):
+        return "groundwater"
     if has("forecast", "weather", "next week", "next few days", "rain tomorrow",
             "upcoming rain", "rainfall forecast", "will it rain"):
         return "weather_forecast"
@@ -423,6 +437,12 @@ def _template_answer(tool: str, entities: dict, result: dict) -> str:
         return (
             f"Evacuation routing for {place}: a {s.get('route_km')} km path over "
             f"{s.get('segments')} segments reaches a safe exit via Dijkstra{warn}. Based on {src}."
+        )
+    if tool == "groundwater":
+        return (
+            f"Groundwater for {place}: storage anomaly {s.get('mean_anomaly_cm')} cm with a "
+            f"depletion trend of {s.get('depletion_trend_cm_yr')} cm/yr "
+            f"({s.get('stress_class')}), from NASA GRACE. Based on {src}."
         )
     if tool == "weather_forecast":
         return (
