@@ -18,16 +18,21 @@ Codebase map (for the "plugs in" column):
 
 | # | Feature | Module | File / where | Effort | Impact | Now? |
 |---|---------|--------|--------------|--------|--------|------|
-| 1 | **Otsu thresholding on Sentinel-1** (replace fixed −3 dB / −15 dB) | FloodAI | `flood.py::_sar_extent_live` (new `_otsu_threshold` helper) | S | High | yes (live GEE) |
-| 2 | **HAND as a flood conditioning factor** (and SAR false-positive mask) | FloodAI | `flood.py::_susceptibility_live` factors dict; reuse in `_sar_extent_live` | S | High | yes |
+| 1 | ✅ **Otsu thresholding on Sentinel-1** (replace fixed −3 dB / −15 dB) | FloodAI | `flood.py::_sar_extent_live` (new `_otsu_threshold` helper) | S | High | ✅ shipped |
+| 2 | ✅ **HAND as a flood conditioning factor** (and SAR false-positive mask) | FloodAI | `flood_factors.py` factor stack; reuse in `_sar_extent_live` | S | High | ✅ shipped |
 | 3 | **Flood frequency from JRC GSW history** (recurrence/seasonality factor) | FloodAI | `flood.py::_susceptibility_live` (new factor); `datasets.py` already lists GSW | S | High | yes |
-| 4 | **Proper SPI gamma fit** via `climate_indices` (replace z-score proxy) | DroughtAI | `drought.py::_spi_live`/`_spi_demo` (new `_spi_gamma`) | S | High | yes (BSD lib) |
-| 5 | **ETCCDI extreme indices** (R95p, CDD, RX1day, heatwave days) | ClimateLens | new `climate.py::extremes()` + `/climate/extremes` route | M | High | yes |
+| 4 | ✅ **Proper SPI gamma fit** via `climate_indices` (replace z-score proxy) | DroughtAI | `drought.py::_spi_live`/`_spi_demo` (new `_spi_gamma`) | S | High | ✅ shipped |
+| 5 | ✅ **ETCCDI extreme indices** (R95p, CDD, RX1day, heatwave days) | ClimateLens | new `climate.py::extremes()` + `/climate/extremes` route | M | High | ✅ shipped |
 | 6 | **p-median / set-cover exact ILP** via PuLP (behind MCLP signature) | ResilienceOR | `optimize.py` new `locate_shelters_ilp`, `set_cover` | M | High | yes (PuLP+CBC) |
-| 7 | **Road-network betweenness criticality** (NetworkX) | InfraRisk | new `infra.py::road_criticality()` + `/infra/criticality` route | M | High | yes |
+| 7 | ✅ **Road-network betweenness criticality** (NetworkX) | InfraRisk | new `infra.py::road_criticality()` + `/infra/criticality` route | M | High | ✅ shipped |
 | 8 | **Expected Annual Damage** w/ depth-damage curves (Huizinga 2017) | InfraRisk | new `infra.py::expected_annual_damage()`; feeds knapsack `risk_reduction` | M | High | yes (demo), partial (live) |
 | 9 | **SPEI** (P − PET, log-logistic) via `climate_indices` | DroughtAI | `drought.py` new `spei()` + `/drought/spei` route | M | High | yes |
 | 10 | **GeoCopilot RAG over method cards / docs** (LlamaIndex + local embeddings) | GeoCopilot | `services/copilot.py` new `retrieve()`; cite in `CITATIONS` | M | High | partial (small embed model) |
+
+> **Status (2026-05-24): items 1, 2, 4, 5, 7 are shipped** (✅ above) — Otsu SAR
+> thresholding, the HAND conditioning factor, gamma-fit SPI, ETCCDI extremes, and
+> road-network betweenness criticality are all in the codebase. SHAP (X4) also
+> shipped in the ML flood path. Remaining open: 3, 6, 8, 9, 10.
 
 Rationale: 1–4 and 9 sharpen the *scientific correctness* of existing live paths
 with tiny diffs; 5–8 add genuinely new decision value with permissive-license
@@ -38,7 +43,7 @@ GPU. None require PyTorch or model weights.
 
 ## 🌊 FloodAI
 
-### F1 — Otsu thresholding on Sentinel-1  · S · High · yes
+### F1 — Otsu thresholding on Sentinel-1  · S · High · ✅ SHIPPED
 Histogram bi-level threshold (Otsu 1979) on VV (or VV+VH) backscatter instead of
 the hard-coded `diff.lt(-3).And(post.lt(-15))`. Compute the per-AOI histogram via
 `ee.Reducer.histogram`, find the between-class-variance-maximizing cut in Python,
@@ -49,7 +54,7 @@ threshold in GEE. Add a permanent-water mask (JRC GSW occurrence > 50) so only
 - **Data:** `COPERNICUS/S1_GRD`, mask `JRC/GSW1_4/GlobalSurfaceWater`.
 - Demo path keeps the threshold-a-field mock; only the live path changes.
 
-### F2 — HAND (Height Above Nearest Drainage) factor & mask  · S · High · yes
+### F2 — HAND (Height Above Nearest Drainage) factor & mask  · S · High · ✅ SHIPPED
 Add HAND as a 7th conditioning factor (low HAND = floodplain = high risk) and use
 it to suppress SAR false positives (terrain shadow / dry dark surfaces). Use the
 ready-made GEE HAND asset rather than recomputing drainage.
@@ -92,7 +97,7 @@ separability and speckle robustness.
 
 ## 🌡️ ClimateLens
 
-### C1 — ETCCDI extreme indices  · M · High · yes
+### C1 — ETCCDI extreme indices  · M · High · ✅ SHIPPED
 R95p (annual precip on > 95th wet-day pct), CDD (consecutive dry days), RX1day
 (max 1-day precip), heatwave days / WSDI (≥ N consecutive days > 90th pct), TXx.
 Compute on the NEX-GDDP daily series; report baseline vs horizon deltas.
@@ -133,13 +138,17 @@ change that widens scenario coverage.
 
 ## 🌵 DroughtAI
 
-### D1 — Proper SPI gamma fit  · S · High · yes
+### D1 — Proper SPI gamma fit  · S · High · ✅ SHIPPED
 Replace the historical z-score proxy with a true two-parameter gamma fit per
 accumulation window → CDF → standard-normal transform (handles zero-precip via the
 mixed distribution). Use the NOAA-grade `climate_indices` library.
 - **Source:** McKee et al. (1993) SPI; `climate_indices` (monocongo, BSD-3).
 - **Plugs in:** `drought.py::_spi_live` and `_spi_demo` → new `_spi_gamma(series, scale)`.
 - **Data:** `UCSB-CHG/CHIRPS/PENTAD` accumulations; gamma fit runs in NumPy/SciPy.
+- **Status:** shipped via `_spi_gamma` (SciPy `stats.gamma.fit` + zero-precip mix).
+  The *regional* index value uses the gamma fit; the *per-pixel* SPI tile is still
+  rendered as a z-score image — turning that tile into a per-pixel gamma map is the
+  remaining work.
 
 ### D2 — SPEI (climatic water balance)  · M · High · yes
 P − PET fit to a log-logistic distribution; captures temperature-driven drying
@@ -174,7 +183,7 @@ existing `indices.py::vci` helper.
 
 ## 🛣️ InfraRisk
 
-### I1 — Road-network betweenness criticality  · M · High · yes
+### I1 — Road-network betweenness criticality  · M · High · ✅ SHIPPED
 Build the OSM (or demo lattice) road graph and rank segments by edge-betweenness
 centrality + largest-connected-component loss when a flooded link is removed →
 flags segments whose failure most degrades emergency access.
@@ -307,7 +316,7 @@ just point estimates.
 - **Plugs in:** `validation.py::qrf_intervals` + `picp`; surfaced in any model-backed module's `reliability`.
 - **Data:** `sklearn`/`quantile-forest`; offline-capable.
 
-### X4 — SHAP explainability  · M · Med · yes(offline)
+### X4 — SHAP explainability  · M · Med · ✅ SHIPPED (ML flood path)
 Per-feature / per-pixel attribution of risk scores so every number is auditable
 ("elevation drove this cell's high risk"). Offline batch over a model; not in the
 request hot path.

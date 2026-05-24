@@ -17,6 +17,14 @@ Applicability, kriging, SHAP, ensemble uncertainty) and flags them as such.
 > soil-moisture/vegetation indices, geostatistics) with explicit "not covered —
 > bring external source" callouts so nobody over-claims a citation.
 
+> Module-coverage note (2026-05-24): this brief predates two later modules —
+> **WeatherCast** (short-range forecasts via the key-less Open-Meteo API) and
+> **GroundwaterAI** (NASA GRACE/GRACE-FO terrestrial water storage; key references
+> Tapley et al. 2004, Rodell et al. 2009/2018, Famiglietti 2014). Their methods and
+> sources are documented in [`engineering.md`](engineering.md) §1.5–1.6 and
+> [`modules.md`](modules.md); they are not part of the soil-science source corpus
+> covered below.
+
 ---
 
 ## External references (web-sourced, 2026-05-23)

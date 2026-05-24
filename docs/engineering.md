@@ -51,16 +51,35 @@ water IoU ≈ 82.6).
 NEX-GDDP-CMIP6 (*Thrasher et al., 2022*), 0.25°, daily, bias-corrected & statistically
 downscaled. Δ = period-mean(SSP, horizon) − period-mean(historical, 1995–2014).
 Units normalised (`pr`: kg m⁻² s⁻¹ → mm yr⁻¹; `tas`: K → °C). SSP framework: *O'Neill
-et al., 2016*. Extreme indices (R95p, heatwave days) per ETCCDI are on the roadmap.
+et al., 2016*. ETCCDI-style extreme indices (RX1day, R95p, CDD, hot-days) ship via
+`extremes()` / `/climate/extremes`; the full daily ETCCDI 27-index suite is on the roadmap.
 
 ### 1.4 DroughtAI — SPI & VCI
-- **SPI** (*McKee et al., 1993*): fit a gamma distribution to the k-month precipitation
-  accumulation (CHIRPS), transform the CDF to the standard normal; classify D0–D4.
-  Live path uses a historical z-score approximation pending full gamma fitting.
+- **SPI** (*McKee et al., 1993*): fit a two-parameter gamma distribution to the
+  k-month precipitation accumulation (CHIRPS), mix in the zero-precip probability,
+  transform the CDF to the standard normal; classify D0–D4. The regional index value
+  now uses this gamma fit (`_spi_gamma`); the per-pixel SPI tile is still rendered
+  as a z-score image.
 - **VCI** (*Kogan, 1995*): `VCI = (NDVI − NDVI_min)/(NDVI_max − NDVI_min)` from
   MODIS MOD13, clamped to [0,1].
 
-### 1.5 Tile strategy
+### 1.5 WeatherCast — short-range forecast
+A key-less **Open-Meteo** call at the AOI centroid returns a 1–16 day daily forecast
+(precipitation, rain probability, Tmax/Tmin, wind). A flood-relevant heavy-rain watch
+applies the IMD daily thresholds (heavy ≥ 50 mm, very heavy ≥ 115 mm) to flag peak
+days. Complements ClimateLens's long-range CMIP6 projections with an actionable
+nowcast. **Live-only** (no demo surface): the service raises on network failure
+rather than fabricating a forecast. Lives in `backend/app/services/weather.py`.
+
+### 1.6 GroundwaterAI — terrestrial water storage
+NASA **GRACE/GRACE-FO** liquid-water-equivalent thickness (cm anomaly vs 2004–2009),
+using the CSR/GFZ/JPL ensemble mean. A linear fit of the region-mean monthly series
+gives a depletion trend (cm/yr; negative = depletion, cf. *Rodell et al., 2009/2018*;
+*Famiglietti, 2014*), classified into stress bands (Severe → Recharging). A recharge
+proxy is CHIRPS rainfall − MODIS evapotranspiration (mm/yr). Coarse (regional) AOI
+cap. **Data structure:** GRACE `ee.ImageCollection` → `reduceColumns(linearFit)`.
+
+### 1.7 Tile strategy
 No rasters cross the backend. A styled `ee.Image` yields a `getMapId()` XYZ tile
 template streamed by Leaflet from Google's edge — O(1) payload regardless of AOI.
 Demo mode instead returns a GeoJSON cell grid (an n×n choropleth) rendered client-side.
@@ -69,16 +88,24 @@ Demo mode instead returns a GeoJSON cell grid (an n×n choropleth) rendered clie
 
 ## 2. Reliability & validation (cross-cutting GeoAI)
 
-- **Spatial cross-validation** is mandatory: random K-fold leaks spatially
-  autocorrelated samples and inflates R²; one corpus study showed R² collapse from
-  0.96 (random) to 0.02–0.27 (spatial). We block by geography (KMeans on
-  coordinates → GroupKFold) — *Meyer et al., 2019; Roberts et al., 2017*.
-- **Area of Applicability (AOA)** (*Meyer & Pebesma, 2021*): a Dissimilarity Index
-  in (weighted) feature space; `DI > 1` ⇒ outside the AOA ⇒ the prediction is an
-  extrapolation and is masked/flagged. FloodAI returns `reliability.applicable_pct`.
-- **Calibrated uncertainty:** Quantile Regression Forests + PICP (coverage of
+Status legend: ✅ implemented · ◻ planned (tracked as X1–X4 in
+[`feature-backlog.md`](feature-backlog.md), landing in a shared
+`geo-engine/terrashield_geo/validation.py` not yet created).
+
+- ✅ **Explainability:** SHAP (*Lundberg & Lee, 2017*) for factor attribution —
+  shipped in the ML flood-risk path (`ml_flood.py`: real `shap.TreeExplainer` with
+  an impurity-importance fallback).
+- ✅ **Area-of-Applicability signal (partial):** FloodAI returns
+  `reliability.applicable_pct` on the **demo path** (computed inline); the live
+  susceptibility path currently omits it (returns only `method` + `factors`). The
+  generalized Dissimilarity Index (*Meyer & Pebesma, 2021*; `DI > 1` ⇒ extrapolation
+  ⇒ masked/flagged) is not yet factored into a shared, reusable module.
+- ◻ **Spatial cross-validation:** random K-fold leaks spatially autocorrelated
+  samples and inflates R²; one corpus study showed R² collapse from 0.96 (random)
+  to 0.02–0.27 (spatial). Plan: block by geography (KMeans on coordinates →
+  GroupKFold) — *Meyer et al., 2019; Roberts et al., 2017*.
+- ◻ **Calibrated uncertainty:** Quantile Regression Forests + PICP (coverage of
   prediction intervals) — *Meinshausen, 2006*.
-- **Explainability:** SHAP (*Lundberg & Lee, 2017*) for factor attribution.
 
 ---
 
@@ -162,6 +189,8 @@ SPI, *AMS* · Meinshausen (2006) QRF, *JMLR* · Meyer & Pebesma (2021) AOA, *Met
 Ecol. Evol.* · Nemhauser, Wolsey & Fisher (1978) *Math. Prog.* · O'Neill et al.
 (2016) SSP, *Geosci. Model Dev.* · Otsu (1979) *IEEE SMC* · Pekel et al. (2016) JRC
 GSW, *Nature* · Saaty (1980) AHP · Szwarcman et al. (2025) Prithvi-EO-2.0 · Thrasher
-et al. (2022) NEX-GDDP-CMIP6, *Sci. Data* · Yamazaki et al. (2019) MERIT Hydro, *WRR*.
+et al. (2022) NEX-GDDP-CMIP6, *Sci. Data* · Yamazaki et al. (2019) MERIT Hydro, *WRR* ·
+Famiglietti (2014) *Nat. Clim. Change* · Rodell et al. (2018) GRACE depletion, *Nature* ·
+Open-Meteo forecast API.
 
 A fuller, module-by-module literature brief is in [`research-notes.md`](research-notes.md).

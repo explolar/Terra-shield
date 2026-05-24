@@ -170,6 +170,14 @@ def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pra
     high_km2 = round((ee.Number(ee.Algorithms.If(high, high, 0)).getInfo() or 0) / 1e6, 2)
     mean_class = round(mean.getInfo() or 0, 2)
 
+    # Data-support proxy for the Area of Applicability: share of the AOI where every
+    # conditioning factor has valid data (masked pixels = no model support, e.g. over
+    # ocean/nodata). Keeps the live reliability shape consistent with the demo path.
+    applicable = ee.Number(composite.mask().reduceRegion(
+        ee.Reducer.mean(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).values().get(0))
+    applicable_pct = round((applicable.getInfo() or 0) * 100, 1)
+
     return {
         "module": "flood",
         "product": "susceptibility",
@@ -189,6 +197,7 @@ def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pra
         "reliability": {
             "method": "AHP-MCDM, 11 factors (Saaty 1980); spatial block CV for any learned layer",
             "factors": len(FACTOR_NAMES),
+            "applicable_pct": applicable_pct,  # % of AOI with complete factor coverage
         },
         "rainfall_scenario": scenario,
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},

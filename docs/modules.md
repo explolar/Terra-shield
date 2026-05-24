@@ -82,7 +82,7 @@ susceptibility (Saaty); TWI (Beven & Kirkby 1979).
 | GET | `/climate/scenarios` | Available SSPs, variables, models, horizons |
 
 Data: **NEX-GDDP-CMIP6** (NASA, 0.25°, daily, 1950–2100) via Earth Engine
-`NASA/GDDP-CMIP6`. Variables: `pr` (precip), `tas`/`tasmax`/`tasmin`.
+`NASA/GDDP-CMIP6`. Variables: `pr` (precip), `tas`/`tasmax` (`tasmin` planned).
 Scenarios: `ssp245`, `ssp585`. Horizons: `2030s`, `2050s`, `2080s` vs `1995–2014`.
 
 ```jsonc
@@ -117,8 +117,9 @@ to standard normal; classify D0–D4.
 | POST | `/infra/exposure` | Roads / buildings / population exposed to a hazard layer |
 | POST | `/infra/access` | Emergency-access routing impact under flooding |
 
-Data: **OSM** (roads, buildings), **WorldPop** (population). v1 computes exposure
-overlays; routing-based access loss is on the roadmap.
+Data: **ESA WorldCover** (built-up area), **WorldPop** (population), **SRTM** (low-lying
+hazard proxy). v1 computes exposure overlays; **OSM** road network + routing-based
+access loss are on the roadmap.
 
 ---
 
@@ -174,7 +175,7 @@ LLM summarization deepen on the roadmap.
 | NEX-GDDP-CMIP6 | climate projections | 0.25° | CC-BY-SA 4.0 |
 | ESA WorldCover | land use | 10 m | CC-BY 4.0 |
 | WorldPop | population | 100 m | CC-BY 4.0 |
-| OpenStreetMap | roads, buildings | vector | ODbL |
+| OpenStreetMap | roads, routing *(roadmap)* | vector | ODbL |
 | NASA GRACE/GRACE-FO | groundwater / water storage anomaly | ~3° mascon | Open (NASA) |
 | MODIS MOD13/MOD16 | NDVI/VCI, evapotranspiration | 500 m–1 km | Open (NASA) |
 | JRC Global Surface Water | permanent water, flood frequency | 30 m | Open (EC JRC) |

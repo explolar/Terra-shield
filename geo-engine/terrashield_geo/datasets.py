@@ -42,6 +42,20 @@ CATALOG = [
         "id": "JRC/GSW1_4/GlobalSurfaceWater", "name": "JRC Global Surface Water",
         "module": ["flood"], "var": "water occurrence", "resolution": "30 m", "license": "Open (EC JRC)",
     },
+    {
+        "id": "NASA/GRACE/MASS_GRIDS_V04/LAND", "name": "NASA GRACE/GRACE-FO",
+        "module": ["groundwater"], "var": "terrestrial water-storage anomaly",
+        "resolution": "0.5° (~3° mascon)", "license": "Open (NASA)",
+    },
+    {
+        "id": "MODIS/061/MOD16A2", "name": "MODIS MOD16 ET", "module": ["groundwater"],
+        "var": "evapotranspiration (recharge proxy)", "resolution": "500 m", "license": "Open (NASA)",
+    },
+    {
+        "id": "open-meteo", "name": "Open-Meteo Forecast API", "module": ["weather"],
+        "var": "1-16 day precip / temp / wind forecast", "resolution": "~11 km",
+        "license": "CC-BY 4.0 (free, no key)",
+    },
 ]
 
 
