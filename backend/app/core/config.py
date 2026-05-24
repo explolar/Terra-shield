@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     llm_model: str = "llama-3.3-70b-versatile"
     llm_base_url: str | None = None  # e.g. http://localhost:11434 for ollama
 
+    # --- GeoCopilot persona (Terra Lens) ---
+    # Override the default forecaster voice live, without a code change.
+    copilot_persona: str | None = None
+
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

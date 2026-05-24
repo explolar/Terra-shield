@@ -18,6 +18,7 @@ from typing import Any
 from terrashield_geo import aoi as geo_aoi
 from terrashield_geo import climate, drought, flood, gee, groundwater, infra, ml_flood, optimize
 
+from ..core.config import get_settings
 from . import llm
 
 # Tiny gazetteer so questions can name a place instead of drawing an AOI.
@@ -511,10 +512,14 @@ async def ask(question: str, aoi: dict | None = None) -> dict[str, Any]:
     # Upgrade the prose with Llama, strictly grounded in the computed numbers.
     llm_used = False
     if llm.is_enabled():
-        system = (
-            "You are GeoCopilot, an assistant for climate-risk analysis. "
-            "Answer in 2-4 sentences. You MUST only use the numbers given to you; "
-            "never invent figures. Be precise and decision-useful."
+        persona = get_settings().copilot_persona or (
+            "You are Terra Lens, a friendly climate-risk forecaster. "
+            "Reply in the same language the user wrote their question in. "
+            "Keep it short but informative: 2-3 warm, clear sentences."
+        )
+        system = persona + (
+            " Use ONLY the numbers given to you below; never invent figures. "
+            "Be precise and decision-useful."
         )
         user = (
             f"User question: {question}\n\n"

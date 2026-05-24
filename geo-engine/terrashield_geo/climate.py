@@ -167,6 +167,15 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     vis = {"min": -span, "max": span, "palette": tiles.RAMPS[meta["ramp"]]}
     tile_url = tiles.image_tile_url(delta_img, vis)
 
+    # Trajectory for the result/chat curve: interpolate between the two real
+    # decade-mean endpoints (baseline -> horizon). A trend line, not per-year obs.
+    ts_years = list(range((base0 + base1) // 2, h1 + 1))
+    _n = max(len(ts_years) - 1, 1)
+    timeseries = [
+        {"year": y, "value": round(baseline_val + (projected_val - baseline_val) * i / _n, 2)}
+        for i, y in enumerate(ts_years)
+    ]
+
     return {
         "module": "climate",
         "product": "projection",
@@ -182,7 +191,7 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
         "delta": round(delta, 2),
         "pct_change": round(delta / max(abs(baseline_val), 1e-6) * 100, 1),
         "baseline_period": f"{base0}-{base1}",
-        "timeseries": [],  # served separately on the live path
+        "timeseries": timeseries,
         "tile_url": tile_url,
         "grid": None,
         "legend": tiles.build_legend(meta["ramp"], ["Low", "", "Mid", "", "High"]),

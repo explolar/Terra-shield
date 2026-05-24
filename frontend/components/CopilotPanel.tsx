@@ -6,6 +6,7 @@ import { copilotAsk } from "@/lib/api";
 import type { AOI, CopilotResponse, LayerResponse } from "@/lib/types";
 import { COPILOT_EXAMPLES } from "@/lib/presets";
 import { SourceBadge, Spinner } from "@/components/ui";
+import { ClimateTimeseries } from "@/components/Charts";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -62,9 +63,9 @@ export function CopilotPanel({
           <Bot size={17} />
         </div>
         <div>
-          <div className="text-sm font-semibold text-ink">GeoCopilot</div>
+          <div className="text-sm font-semibold text-ink">Terra Lens</div>
           <div className="text-[11px] text-ink-subtle">
-            Grounded climate-risk agent
+            Friendly climate-risk forecaster
           </div>
         </div>
       </div>
@@ -110,6 +111,11 @@ export function CopilotPanel({
                 <div className="rounded-2xl rounded-tl-sm border border-line bg-surface-subtle px-3.5 py-2.5 text-sm leading-relaxed text-ink">
                   {m.text}
                 </div>
+                {m.response?.layers?.[0]?.timeseries?.length ? (
+                  <div className="rounded-2xl border border-line bg-white p-2 pr-3">
+                    <ClimateTimeseries layer={m.response.layers[0]} />
+                  </div>
+                ) : null}
                 {m.response && <AssistantMeta res={m.response} />}
               </div>
             </div>
@@ -146,7 +152,7 @@ export function CopilotPanel({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask GeoCopilot…"
+            placeholder="Ask Terra Lens…"
             className="flex-1 bg-transparent px-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none"
           />
           <button
