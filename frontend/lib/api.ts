@@ -171,8 +171,14 @@ export const groundwaterStorage = (aoi: AOI) =>
   post<GroundwaterResponse>("/groundwater/storage", { aoi });
 
 // ---- GeoCopilot ----
+export interface LlmStatus {
+  enabled: boolean;
+  provider: string;
+  model?: string | null;
+}
+
 export const getCopilotTools = () =>
-  request<{ tools: CopilotTool[] }>("/copilot/tools");
+  request<{ tools: CopilotTool[]; llm: LlmStatus }>("/copilot/tools");
 
 export const copilotAsk = (body: { question: string; aoi?: AOI }) =>
   post<CopilotResponse>("/copilot/ask", body);

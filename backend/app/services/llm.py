@@ -35,6 +35,17 @@ def is_enabled() -> bool:
     return False
 
 
+def status() -> dict:
+    """Whether the GeoCopilot LLM voice is active (for a UI on/off indicator)."""
+    s = get_settings()
+    on = is_enabled()
+    return {
+        "enabled": on,
+        "provider": s.llm_provider.lower(),
+        "model": s.llm_model if on else None,
+    }
+
+
 async def complete(system: str, user: str, temperature: float = 0.2) -> str | None:
     """Return a cleaned, bounded LLM completion, or None if unavailable.
 

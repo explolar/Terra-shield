@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Send, Bot, User, Sparkles, BookText, Wrench } from "lucide-react";
-import { copilotAsk } from "@/lib/api";
+import { copilotAsk, getCopilotTools, type LlmStatus } from "@/lib/api";
 import type { AOI, CopilotResponse, LayerResponse } from "@/lib/types";
 import { COPILOT_EXAMPLES } from "@/lib/presets";
 import { SourceBadge, Spinner } from "@/components/ui";
@@ -25,6 +25,7 @@ export function CopilotPanel({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [llm, setLlm] = useState<LlmStatus | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,6 +34,17 @@ export function CopilotPanel({
       behavior: "smooth",
     });
   }, [messages, loading]);
+
+  // Fetch whether the LLM (Groq) voice is active, for the header indicator.
+  useEffect(() => {
+    let alive = true;
+    getCopilotTools()
+      .then((r) => alive && setLlm(r.llm))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function send(question: string) {
     const q = question.trim();
@@ -68,6 +80,23 @@ export function CopilotPanel({
             Friendly climate-risk forecaster
           </div>
         </div>
+        {llm && (
+          <span
+            title={
+              llm.enabled
+                ? `AI voice on · ${llm.provider}${llm.model ? " · " + llm.model : ""}`
+                : "AI voice off — grounded templated answers"
+            }
+            className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+              llm.enabled
+                ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                : "border-line bg-surface-subtle text-ink-muted"
+            }`}
+          >
+            <Sparkles size={10} />
+            {llm.enabled ? "AI on" : "Basic"}
+          </span>
+        )}
       </div>
 
       {/* messages */}
