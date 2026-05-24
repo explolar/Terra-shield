@@ -56,8 +56,9 @@ export function LeftRail({
         })}
       </nav>
 
-      {/* Mobile bottom navigation (< md) — horizontally scrollable for all modules */}
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 flex items-stretch overflow-x-auto border-t border-line bg-white px-1 shadow-[0_-4px_16px_-8px_rgba(15,23,42,0.18)] md:hidden">
+      {/* Mobile bottom navigation (< md) — horizontally scrollable for all modules.
+          z-[1100] keeps it above Leaflet's map panes/controls (which reach ~z-1000). */}
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-[1100] flex items-stretch overflow-x-auto border-t border-line bg-white px-1 shadow-[0_-4px_16px_-8px_rgba(15,23,42,0.18)] md:hidden">
         {DASHBOARD_MODULES.map((m) => {
           const isActive = active === m.id;
           return (
