@@ -102,6 +102,15 @@ class ForecastRequest(BaseModel):
     days: int = Field(default=7, ge=1, le=16)
 
 
+# ---- Agroclimate (NASA POWER) / US forecast (NOAA NWS) ------------------- #
+class AgroclimateRequest(BaseModel):
+    aoi: AOI
+
+
+class UsForecastRequest(BaseModel):
+    aoi: AOI
+
+
 # ---- GroundwaterAI (GRACE) ----------------------------------------------- #
 class GroundwaterRequest(BaseModel):
     aoi: AOI
