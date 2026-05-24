@@ -118,7 +118,7 @@ export function ResiliencePanel({
     (state.tool === "ahp" && ahp);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* header */}
       <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
         <span
@@ -132,7 +132,7 @@ export function ResiliencePanel({
         </div>
       </div>
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4">
         <div>
           <ResilienceControls
             state={state}

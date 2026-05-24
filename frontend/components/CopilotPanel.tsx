@@ -56,7 +56,7 @@ export function CopilotPanel({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* header */}
       <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5">
         <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-white">
@@ -71,7 +71,7 @@ export function CopilotPanel({
       </div>
 
       {/* messages */}
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {messages.length === 0 && !loading && (
           <div className="pt-2">
             <div className="mb-3 flex items-center gap-2 text-sm text-ink-muted">
