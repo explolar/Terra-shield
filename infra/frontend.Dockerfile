@@ -2,7 +2,9 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm ci
+# npm install (not ci) so the Linux build resolves platform-specific optional deps
+# (e.g. @emnapi/*) that a Windows-generated lockfile omits — ci would hard-fail on them.
+RUN npm install --no-audit --no-fund
 
 FROM node:20-slim AS builder
 WORKDIR /app
