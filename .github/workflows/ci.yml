@@ -83,12 +83,20 @@ jobs:
 
       - name: Deploy backend
         run: |
+          SECRETS="/secrets/ee-key.json=terrashield-ee-key:latest"
+          ENVVARS="TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=$EE_PROJECT,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json"
+          # Optional GeoCopilot LLM (Terra Lens voice): set repo Variable LLM_PROVIDER=groq.
+          # The key itself stays in Secret Manager as terrashield-llm-key — never in GitHub.
+          if [ -n "${{ vars.LLM_PROVIDER }}" ]; then
+            SECRETS="$SECRETS,TERRASHIELD_LLM_API_KEY=terrashield-llm-key:latest"
+            ENVVARS="$ENVVARS,TERRASHIELD_LLM_PROVIDER=${{ vars.LLM_PROVIDER }},TERRASHIELD_LLM_MODEL=${{ vars.LLM_MODEL || 'llama-3.3-70b-versatile' }}"
+          fi
           gcloud run deploy terrashield-backend \
             --image $AR/backend --region "$REGION" \
             --allow-unauthenticated --port 8000 \
             --min-instances 1 --memory 2Gi --cpu 1 --timeout 300 \
-            --update-secrets=/secrets/ee-key.json=terrashield-ee-key:latest \
-            --set-env-vars=TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=$EE_PROJECT,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json
+            --update-secrets="$SECRETS" \
+            --set-env-vars="$ENVVARS"
 
       - name: Resolve backend URL
         run: |
