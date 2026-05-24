@@ -6,6 +6,57 @@ The platform is two containers — **backend** (FastAPI + geo-engine) and
 
 ---
 
+## 0. Current live deployment (record — 2026-05-24)
+
+> Operational specifics for *this* deployment. Contains project ids / accounts /
+> URLs — **not secrets** (the EE key lives only in Secret Manager). Keep this repo private.
+
+**Live URLs**
+- App (frontend): https://terrashield-frontend-352605264721.asia-south1.run.app
+- API (backend): https://terrashield-backend-352605264721.asia-south1.run.app
+- API docs: https://terrashield-backend-352605264721.asia-south1.run.app/docs
+- EE status: https://terrashield-backend-352605264721.asia-south1.run.app/api/v1/earthdata/status
+- Source repo: https://github.com/explolar/Terra-shield
+
+**Accounts & projects (the two-account split)**
+
+| Role | Google account | Project | Notes |
+|------|----------------|---------|-------|
+| Earth Engine (data) | ankituday123@gmail.com | `xward-481405` (#518484395506) | EE-registered; owns the `terrashield-ee` service account |
+| Hosting / billing | ankit.course2003@gmail.com | `terralens-496005` (#352605264721) | Cloud Run, Artifact Registry, Secret Manager |
+
+**Cloud resources (on `terralens-496005`)**
+- Region `asia-south1`
+- Cloud Run: `terrashield-backend` (2Gi / 1cpu / min-instances 1 / timeout 300), `terrashield-frontend`
+- Artifact Registry: `terrashield` (docker) → images `…/terrashield/{backend,frontend}`
+- Secrets: `terrashield-ee-key` (EE SA key) · `terrashield-llm-key` (Groq, optional)
+- Runtime SA `352605264721-compute@developer.gserviceaccount.com` has `secretAccessor` on both secrets
+
+**EE service account (on `xward-481405`)**
+- `terrashield-ee@xward-481405.iam.gserviceaccount.com`
+- Roles: `roles/earthengine.writer` (**not** viewer — tiles need `earthengine.maps.create`) + `roles/serviceusage.serviceUsageConsumer`
+- Backend runs with `TERRASHIELD_GEE_PROJECT=xward-481405` + the mounted key → `mode=live`
+
+**Local gcloud configs**
+- `gee` → ankituday123 / xward-481405 · `deploy` → ankit.course2003 / terralens-496005
+- switch: `gcloud config configurations activate gee|deploy`
+
+**GeoCopilot persona** — answers as **Terra Lens** (friendly forecaster, replies in the user's
+language, short-but-informative; climate answers include an inline trajectory curve). Tune live
+without a rebuild: `gcloud run services update terrashield-backend --region asia-south1 --update-env-vars="TERRASHIELD_COPILOT_PERSONA=…"`.
+
+**What was done**
+1. Reconciled docs↔code; fixed image packaging so it runs live (`[serve,ml]` extras) and Cloud Build configs (`gcloud builds submit` has no `--file`).
+2. Phase A — created the EE SA + key on `xward-481405`; smoke test → LIVE (after switching the EE role viewer→writer).
+3. Phase B — enabled APIs, created the Artifact Registry repo, stored the EE-key secret + granted runtime-SA access on `terralens-496005`.
+4. Phase C — built+deployed backend via Cloud Build → confirmed live; fixed the Windows-generated frontend lockfile (build uses `npm install` for Linux-only optional deps); built+deployed frontend; wired CORS.
+5. Added the Terra Lens persona + inline trajectory curve; optional Groq LLM via `terrashield-llm-key`.
+6. Keyless **CI/CD** (Workload Identity) wired in [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) — see [`CICD.md`](CICD.md); GitHub remote `explolar/Terra-shield` connected; auto-deploy activates once it lands on `main`.
+
+**Redeploy after code changes:** re-run §2b (backend) and §2c (frontend) from your terminal, or push to `main` once CI/CD is activated.
+
+---
+
 ## 1. The account split — how EE auth actually works
 
 **Key idea: Earth Engine access lives in a *service-account key*, not in where you

@@ -136,6 +136,13 @@ a grounded natural-language answer plus the layers to render. v1 ships a
 deterministic intent router + tool-calling skeleton; RAG over climate reports and
 LLM summarization deepen on the roadmap.
 
+The LLM persona is **Terra Lens** — a friendly forecaster that replies in the
+user's language and stays short-but-informative, strictly grounded in the computed
+numbers (it never invents figures). Enable/customize via `TERRASHIELD_LLM_PROVIDER=groq`
+(+ a Groq key) and `TERRASHIELD_COPILOT_PERSONA` (overrides the default voice without
+a redeploy). Climate-projection answers render an inline trajectory **curve** in the
+chat.
+
 ```jsonc
 // POST /copilot/ask
 { "question": "How will flood risk in Satara change under SSP585 by 2050?" }
