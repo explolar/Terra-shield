@@ -29,7 +29,10 @@ Write-Host "==> Building backend image..." -ForegroundColor Cyan
 gcloud builds submit --config infra/cloudbuild.backend.yaml --substitutions="_IMAGE=$AR/backend" .
 Assert-Ok "backend build"
 
-$envVars = "TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=$EeProject,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json"
+# Set CORS here too (not only at the end) so a mid-run failure can't leave the
+# backend with a blank allowed-origin -> "Backend offline".
+$FrontendUrl0 = "https://terrashield-frontend-352605264721.asia-south1.run.app"
+$envVars = "TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=$EeProject,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json,TERRASHIELD_CORS_ORIGINS=$FrontendUrl0"
 $secrets = "/secrets/ee-key.json=terrashield-ee-key:latest"
 if ($Groq) {
   $envVars += ",TERRASHIELD_LLM_PROVIDER=groq,TERRASHIELD_LLM_MODEL=llama-3.3-70b-versatile"

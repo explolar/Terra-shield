@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     env: str = "development"
     log_level: str = "INFO"
     api_prefix: str = "/api/v1"
-    cors_origins: str = "http://localhost:3000"
+    # Safety net: include the prod frontend so a deploy that forgets to set
+    # TERRASHIELD_CORS_ORIGINS still allows the live app (avoids "Backend offline").
+    cors_origins: str = (
+        "http://localhost:3000,"
+        "https://terrashield-frontend-352605264721.asia-south1.run.app"
+    )
 
     # --- earth engine ---
     gee_project: str | None = None
