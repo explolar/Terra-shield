@@ -29,6 +29,8 @@ yarn-error.log*
 *.json.key
 service-account*.json
 gee-credentials*.json
+ee-key.json
+*-key.json
 .gee/
 
 # ---- Data / outputs (keep repo light) ----
