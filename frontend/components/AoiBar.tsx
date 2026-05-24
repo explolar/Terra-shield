@@ -16,6 +16,7 @@ export function AoiBar({
   activeStateName,
   onSelectLocation,
   onSelectState,
+  onSelectCity,
   onToggleDraw,
 }: {
   activeId: string | null;
@@ -24,6 +25,7 @@ export function AoiBar({
   activeStateName: string | null;
   onSelectLocation: (loc: LocationPreset) => void;
   onSelectState: (state: StatePreset) => void;
+  onSelectCity: (name: string, bbox: [number, number, number, number]) => void;
   onToggleDraw: () => void;
 }) {
   const [states, setStates] = useState<StatePreset[]>([]);
@@ -146,6 +148,9 @@ export function AoiBar({
           )}
         </div>
 
+        {/* free-text city search (Open-Meteo geocoding, keyless) */}
+        <CitySearch onSelectCity={onSelectCity} />
+
         <span className="hidden h-5 w-px bg-line sm:block" />
 
         {/* preset cities — horizontally scrollable on mobile to avoid overflow */}
@@ -177,6 +182,139 @@ export function AoiBar({
       {drawMode && (
         <div className="pointer-events-none absolute top-full mt-2 flex items-center gap-1.5 rounded-full border border-brand-cyan/50 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-cyan-700 shadow-panel backdrop-blur">
           <Check size={12} /> Click two opposite corners on the map
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ~0.4° box around the geocoded point — matches the scale of the city presets.
+const CITY_HALF = 0.2;
+
+interface GeoResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  country?: string;
+  admin1?: string;
+}
+
+// Free-text city search via Open-Meteo's keyless, CORS-enabled geocoding API.
+function CitySearch({
+  onSelectCity,
+}: {
+  onSelectCity: (name: string, bbox: [number, number, number, number]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<GeoResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // Debounced lookup as the user types (min 2 chars).
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) {
+      setResults([]);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+            term,
+          )}&count=6&language=en&format=json`,
+        );
+        const data = await r.json();
+        if (alive) {
+          setResults(data.results ?? []);
+          setOpen(true);
+        }
+      } catch {
+        if (alive) setResults([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [q]);
+
+  function pick(r: GeoResult) {
+    const b: [number, number, number, number] = [
+      r.longitude - CITY_HALF,
+      r.latitude - CITY_HALF,
+      r.longitude + CITY_HALF,
+      r.latitude + CITY_HALF,
+    ];
+    onSelectCity(r.admin1 ? `${r.name}, ${r.admin1}` : r.name, b);
+    setOpen(false);
+    setQ("");
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="chip flex min-w-[150px] items-center gap-1.5">
+        <Search size={13} className="shrink-0 text-ink-faint" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+          placeholder="Search any city…"
+          className="w-full bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+        />
+        {q && (
+          <button
+            onClick={() => {
+              setQ("");
+              setResults([]);
+            }}
+            className="text-ink-faint hover:text-ink-muted"
+            aria-label="Clear city search"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {open && q.trim().length >= 2 && (
+        <div className="absolute left-0 top-full z-[1100] mt-2 w-[min(18rem,calc(100vw-3rem))] overflow-hidden rounded-xl border border-line bg-white shadow-float">
+          <div className="max-h-[min(16rem,40vh)] overflow-y-auto py-1">
+            {loading && (
+              <div className="px-3 py-3 text-center text-[11px] text-ink-faint">
+                Searching…
+              </div>
+            )}
+            {!loading && results.length === 0 && (
+              <div className="px-3 py-3 text-center text-[11px] text-ink-faint">
+                No city found
+              </div>
+            )}
+            {results.map((r, i) => (
+              <button
+                key={`${r.name}-${i}`}
+                onClick={() => pick(r)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink"
+              >
+                <span className="truncate">{r.name}</span>
+                <span className="shrink-0 text-[10px] text-ink-faint">
+                  {[r.admin1, r.country].filter(Boolean).join(", ")}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

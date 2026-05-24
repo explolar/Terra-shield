@@ -420,6 +420,14 @@ export default function Dashboard() {
     clearOrOverlays();
   }
 
+  function selectCity(name: string, b: [number, number, number, number]) {
+    setDrawMode(false);
+    setActiveLocId(null);
+    setActiveStateName(name); // reuse the AOI label slot to show the searched city
+    setBbox(b);
+    clearOrOverlays();
+  }
+
   function onDrawComplete(b: [number, number, number, number]) {
     setBbox(b);
     setActiveLocId(null);
@@ -522,6 +530,7 @@ export default function Dashboard() {
             activeStateName={activeStateName}
             onSelectLocation={selectLocation}
             onSelectState={selectState}
+            onSelectCity={selectCity}
             onToggleDraw={() => setDrawMode((d) => !d)}
           />
 
