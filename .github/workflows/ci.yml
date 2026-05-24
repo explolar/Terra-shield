@@ -44,3 +44,72 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_BASE: http://localhost:8000/api/v1
+
+  # ---------------------------------------------------------------------------
+  # Continuous deployment — only on push to main, only after tests pass.
+  # Keyless auth via Workload Identity Federation (see infra/CICD.md for setup).
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Cloud Run
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # required for Workload Identity Federation
+    env:
+      RUN_PROJECT: ${{ vars.GCP_PROJECT }}
+      REGION: ${{ vars.GCP_REGION }}
+      EE_PROJECT: ${{ vars.GEE_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (keyless / WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve Artifact Registry path
+        run: echo "AR=$REGION-docker.pkg.dev/$RUN_PROJECT/terrashield" >> "$GITHUB_ENV"
+
+      - name: Build backend image
+        run: |
+          gcloud builds submit --config infra/cloudbuild.backend.yaml \
+            --substitutions=_IMAGE=$AR/backend .
+
+      - name: Deploy backend
+        run: |
+          gcloud run deploy terrashield-backend \
+            --image $AR/backend --region "$REGION" \
+            --allow-unauthenticated --port 8000 \
+            --min-instances 1 --memory 2Gi --cpu 1 --timeout 300 \
+            --update-secrets=/secrets/ee-key.json=terrashield-ee-key:latest \
+            --set-env-vars=TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=$EE_PROJECT,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json
+
+      - name: Resolve backend URL
+        run: |
+          echo "BACKEND_URL=$(gcloud run services describe terrashield-backend \
+            --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
+
+      - name: Build frontend image (bakes backend URL at build time)
+        run: |
+          gcloud builds submit --config infra/cloudbuild.frontend.yaml \
+            --substitutions=_IMAGE=$AR/frontend,_API_BASE=$BACKEND_URL/api/v1 .
+
+      - name: Deploy frontend
+        run: |
+          gcloud run deploy terrashield-frontend \
+            --image $AR/frontend --region "$REGION" \
+            --allow-unauthenticated --port 3000
+
+      - name: Wire CORS (backend allows the frontend origin)
+        run: |
+          FE=$(gcloud run services describe terrashield-frontend \
+            --region "$REGION" --format='value(status.url)')
+          gcloud run services update terrashield-backend --region "$REGION" \
+            --update-env-vars=TERRASHIELD_CORS_ORIGINS=$FE
+          echo "Deployed. Frontend: $FE"
