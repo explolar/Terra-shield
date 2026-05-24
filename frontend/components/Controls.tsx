@@ -114,19 +114,23 @@ function RunButton({
   label?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      aria-busy={loading}
-      className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70"
-    >
-      {loading ? (
-        <Loader2 size={15} className="animate-spin" />
-      ) : (
-        <Play size={15} />
-      )}
-      {loading ? "Running…" : label}
-    </button>
+    // Pinned to the bottom of the scrolling panel so it's reachable without
+    // scrolling past long control lists (e.g. FloodAI's 11 factor sliders).
+    <div className="sticky bottom-0 z-10 -mx-4 border-t border-line bg-white/95 px-4 pb-1 pt-3 backdrop-blur">
+      <button
+        onClick={onClick}
+        disabled={loading}
+        aria-busy={loading}
+        className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {loading ? (
+          <Loader2 size={15} className="animate-spin" />
+        ) : (
+          <Play size={15} />
+        )}
+        {loading ? "Running…" : label}
+      </button>
+    </div>
   );
 }
 
