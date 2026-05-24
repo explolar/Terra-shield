@@ -43,13 +43,15 @@ gcloud config set project $EE_PROJECT
 gcloud iam service-accounts create terrashield-ee \
   --display-name="TerraShield Earth Engine"
 
-# Roles needed to use Earth Engine from this project
+# Roles needed to use Earth Engine from this project.
+# NOTE: use earthengine.writer, not viewer — serving tiles via getMapId requires
+# the `earthengine.maps.create` permission, which the read-only viewer role lacks.
 gcloud projects add-iam-policy-binding $EE_PROJECT \
   --member="serviceAccount:terrashield-ee@${EE_PROJECT}.iam.gserviceaccount.com" \
   --role="roles/serviceusage.serviceUsageConsumer"
 gcloud projects add-iam-policy-binding $EE_PROJECT \
   --member="serviceAccount:terrashield-ee@${EE_PROJECT}.iam.gserviceaccount.com" \
-  --role="roles/earthengine.viewer"
+  --role="roles/earthengine.writer"
 
 # Download the key (keep it secret — never commit it)
 gcloud iam service-accounts keys create ee-key.json \
