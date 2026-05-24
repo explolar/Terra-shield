@@ -19,3 +19,7 @@ steps:
 images:
   - "${_IMAGE}"
 timeout: 1200s
+options:
+  # Log to Cloud Logging only (no default GCS bucket) so the CI deployer SA can
+  # submit builds without the "can only stream logs if Viewer/Owner" error.
+  logging: CLOUD_LOGGING_ONLY
