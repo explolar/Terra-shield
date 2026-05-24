@@ -43,9 +43,15 @@ def build_legend(
     return out
 
 
-def image_tile_url(image: Any, vis_params: dict[str, Any]) -> str:
-    """Return an XYZ tile-URL template for a styled ``ee.Image`` (live path)."""
-    styled = image.visualize(**vis_params)
+def image_tile_url(image: Any, vis_params: dict[str, Any], resample: str | None = "bilinear") -> str:
+    """Return an XYZ tile-URL template for a styled ``ee.Image`` (live path).
+
+    ``resample`` ("bilinear" | "bicubic") renders every layer as a smooth,
+    interpolated surface instead of blocky native pixels. Pass ``None`` to keep
+    nearest-neighbour (e.g. for a strictly categorical layer you want crisp).
+    """
+    img = image.resample(resample) if resample else image
+    styled = img.visualize(**vis_params)
     mapid = styled.getMapId()
     # Newer earthengine-api returns a ready tile_fetcher with the template.
     fetcher = mapid.get("tile_fetcher")
