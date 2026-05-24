@@ -65,6 +65,10 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_list,
+        # Always allow TerraShield's own Cloud Run frontend, regardless of the
+        # CORS_ORIGINS env var — so a deploy that blanks it can't take the app
+        # "offline". Matches any terrashield-frontend-*.run.app origin.
+        allow_origin_regex=r"https://terrashield-frontend-[\w.-]+\.run\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
