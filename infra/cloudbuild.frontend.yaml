@@ -1,0 +1,21 @@
+# Cloud Build config — TerraShield frontend image.
+# Drives `docker build -f` for the non-default infra/frontend.Dockerfile and
+# bakes the backend URL into the Next.js bundle (NEXT_PUBLIC_* is build-time).
+#
+# Usage (from repo root):
+#   gcloud builds submit --config infra/cloudbuild.frontend.yaml \
+#     --substitutions=_IMAGE=$REGION-docker.pkg.dev/$RUN_PROJECT/terrashield/frontend,_API_BASE=$BACKEND_URL/api/v1 .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - infra/frontend.Dockerfile
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE=${_API_BASE}
+      - -t
+      - ${_IMAGE}
+      - .
+images:
+  - "${_IMAGE}"
+timeout: 1200s
