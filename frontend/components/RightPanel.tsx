@@ -9,11 +9,13 @@ import {
   InfraControls,
   WeatherControls,
   GroundwaterControls,
+  LandslideControls,
   type ClimateControlState,
   type DroughtControlState,
   type FloodControlState,
   type InfraControlState,
   type WeatherControlState,
+  type LandslideControlState,
 } from "@/components/Controls";
 import {
   ResultPanel,
@@ -23,6 +25,7 @@ import {
   CriticalityPanel,
   WeatherPanel,
   GroundwaterPanel,
+  LandslidePanel,
 } from "@/components/ResultPanel";
 import { ErrorNote, ResultSkeleton, EmptyState } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
@@ -56,6 +59,8 @@ export interface RightPanelProps {
   setInfra: (s: InfraControlState) => void;
   weather: WeatherControlState;
   setWeather: (s: WeatherControlState) => void;
+  landslide: LandslideControlState;
+  setLandslide: (s: LandslideControlState) => void;
   onRun: () => void;
   // FloodAI 11-factor AHP extras
   ahpDefaults?: FloodWeights | null;
@@ -94,6 +99,8 @@ export function RightPanel(props: RightPanelProps) {
     setInfra,
     weather,
     setWeather,
+    landslide,
+    setLandslide,
     onRun,
     ahpDefaults,
     activeFactors,
@@ -122,6 +129,8 @@ export function RightPanel(props: RightPanelProps) {
   const isWeather = moduleId === "weather";
   // GroundwaterAI renders a dedicated panel AND a map layer (tile/grid).
   const isGroundwater = moduleId === "groundwater";
+  // LandslideAI renders an ML-metrics panel AND a susceptibility map (tile/grid).
+  const isLandslide = moduleId === "landslide";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -184,6 +193,14 @@ export function RightPanel(props: RightPanelProps) {
           )}
           {moduleId === "groundwater" && (
             <GroundwaterControls loading={loading} onRun={onRun} />
+          )}
+          {moduleId === "landslide" && (
+            <LandslideControls
+              state={landslide}
+              setState={setLandslide}
+              loading={loading}
+              onRun={onRun}
+            />
           )}
         </div>
 
@@ -317,6 +334,23 @@ export function RightPanel(props: RightPanelProps) {
                 icon={BarChart3}
                 title="No analysis yet"
                 message="Run the analysis to see groundwater storage and depletion trends for your area."
+              />
+            )
+          ) : isLandslide ? (
+            layer || loading || error ? (
+              <motion.div
+                key={`landslide-${layer?.source ?? "pending"}-${layer?.model ?? ""}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <LandslidePanel layer={layer} loading={loading} error={error} />
+              </motion.div>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="No model yet"
+                message="Pick a model and run it to map landslide susceptibility with F1 / ROC-AUC metrics."
               />
             )
           ) : (

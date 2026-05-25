@@ -13,13 +13,14 @@ import { CopilotPanel } from "@/components/CopilotPanel";
 import { ResiliencePanel } from "@/components/ResiliencePanel";
 import { SourceBadge } from "@/components/ui";
 import { moduleMeta } from "@/components/modules";
-import { DEFAULT_WEIGHTS, DEFAULT_WEATHER } from "@/components/Controls";
+import { DEFAULT_WEIGHTS, DEFAULT_WEATHER, DEFAULT_LANDSLIDE } from "@/components/Controls";
 import type {
   ClimateControlState,
   DroughtControlState,
   FloodControlState,
   InfraControlState,
   WeatherControlState,
+  LandslideControlState,
 } from "@/components/Controls";
 
 import {
@@ -38,6 +39,7 @@ import {
   infraCriticality,
   weatherForecast,
   groundwaterStorage,
+  landslideSusceptibility,
 } from "@/lib/api";
 import type {
   AOI,
@@ -124,6 +126,9 @@ export default function Dashboard() {
   });
   const [weather, setWeather] = useState<WeatherControlState>({
     ...DEFAULT_WEATHER,
+  });
+  const [landslide, setLandslide] = useState<LandslideControlState>({
+    ...DEFAULT_LANDSLIDE,
   });
 
   // --- AHP default weights (from GET /optimize/ahp/default) ---
@@ -373,6 +378,8 @@ export default function Dashboard() {
             : await droughtVegetation({ aoi });
       } else if (moduleId === "infra") {
         res = await infraExposure({ aoi, hazard: infra.hazard });
+      } else if (moduleId === "landslide") {
+        res = await landslideSusceptibility(aoi, landslide.model);
       } else {
         return;
       }
@@ -387,7 +394,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [moduleId, aoi, flood, climate, drought, infra, weather]);
+  }, [moduleId, aoi, flood, climate, drought, infra, weather, landslide]);
 
   // --- AOI handlers ---
   function clearOrOverlays() {
@@ -494,6 +501,8 @@ export default function Dashboard() {
         setInfra={setInfra}
         weather={weather}
         setWeather={setWeather}
+        landslide={landslide}
+        setLandslide={setLandslide}
         onRun={runAnalysis}
         ahpDefaults={ahpDefaults}
         activeFactors={activeFactors}

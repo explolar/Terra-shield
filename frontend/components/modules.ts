@@ -8,6 +8,7 @@ import {
   Network,
   CloudRain,
   Droplets,
+  Mountain,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleId } from "@/lib/types";
@@ -78,6 +79,17 @@ export const MODULES: ModuleMeta[] = [
       "Groundwater storage and depletion trends from satellite gravimetry — see where the water table is falling.",
     accent: "text-indigo-600",
     gradient: "from-indigo-500/20 to-blue-500/10",
+  },
+  {
+    id: "landslide",
+    name: "LandslideAI",
+    short: "Landslide",
+    icon: Mountain,
+    tagline: "ML susceptibility (F1/AUC)",
+    description:
+      "Machine-learned landslide susceptibility trained on a national inventory — slope, rainfall, terrain and more — with F1, ROC-AUC and feature importance.",
+    accent: "text-orange-600",
+    gradient: "from-orange-500/20 to-amber-500/10",
   },
   {
     id: "infra",

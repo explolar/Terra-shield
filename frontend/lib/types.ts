@@ -87,6 +87,12 @@ export interface LayerResponse {
   // flood/sar-extent extras (live): a second XYZ tile with a 3-class
   // severity palette baked in, overlaid above the binary flood extent.
   severity_url?: string | null;
+
+  // landslide/susceptibility (ML) extras
+  metrics?: LandslideMetrics;
+  feature_importance?: MlFeatureImportance[];
+  top_factor?: string;
+  inventory?: string;
 }
 
 // Richer stats returned by /flood/sar-extent (live mode). All optional —
@@ -338,7 +344,18 @@ export type ModuleId =
   | "resilience"
   | "copilot"
   | "weather"
-  | "groundwater";
+  | "groundwater"
+  | "landslide";
+
+export interface LandslideMetrics {
+  f1: number | null;
+  precision: number | null;
+  recall: number | null;
+  roc_auc: number | null;
+  accuracy: number | null;
+  n_samples: number;
+  positive_rate: number;
+}
 
 // ---- WeatherCast: live short-range forecast (Open-Meteo) ----
 // POST /weather/forecast -> { aoi, days }

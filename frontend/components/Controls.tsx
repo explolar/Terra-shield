@@ -84,6 +84,15 @@ export const DEFAULT_GROUNDWATER: GroundwaterControlState = {
   product: "storage",
 };
 
+// LandslideAI: ML susceptibility — choose the classifier.
+export interface LandslideControlState {
+  model: MlModel;
+}
+
+export const DEFAULT_LANDSLIDE: LandslideControlState = {
+  model: "random_forest",
+};
+
 export type ResilienceTool =
   | "shelters"
   | "evacuation"
@@ -549,6 +558,44 @@ export function GroundwaterControls({
         Groundwater storage &amp; depletion, from satellite gravimetry.
       </p>
       <RunButton loading={loading} onClick={onRun} label="Analyze" />
+      {loading && <EeProgressHint />}
+    </div>
+  );
+}
+
+// ---------------- LandslideAI ----------------
+export function LandslideControls({
+  state,
+  setState,
+  loading,
+  onRun,
+}: {
+  state: LandslideControlState;
+  setState: (s: LandslideControlState) => void;
+  loading: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <SectionLabel>Classifier model</SectionLabel>
+        <select
+          value={state.model}
+          onChange={(e) => setState({ ...state, model: e.target.value as MlModel })}
+          className="w-full appearance-none rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink shadow-xs transition-colors focus:border-brand-cyan/60 focus:outline-none focus:ring-2 focus:ring-brand-cyan/30"
+        >
+          {ML_MODELS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <p className="note-box mt-3 text-[11px] leading-relaxed">
+          Trains on a national landslide inventory vs slope, rainfall &amp;
+          terrain — reports F1 / ROC-AUC and what drives the risk.
+        </p>
+      </div>
+      <RunButton loading={loading} onClick={onRun} label="Run model" />
       {loading && <EeProgressHint />}
     </div>
   );

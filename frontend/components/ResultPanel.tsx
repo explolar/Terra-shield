@@ -24,6 +24,7 @@ import {
   Wind,
   Waves,
   Gauge,
+  Mountain,
 } from "lucide-react";
 import type {
   FloodFactor,
@@ -623,6 +624,98 @@ export function MlRiskPanel({
         <Info size={12} className="mt-0.5 shrink-0" />
         {data.explainability}
       </p>
+    </div>
+  );
+}
+
+// ---- LandslideAI panel: ML susceptibility metrics + feature importance ----
+export function LandslidePanel({
+  layer,
+  loading,
+  error,
+}: {
+  layer: LayerResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (error)
+    return (
+      <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  if (loading)
+    return (
+      <div className="space-y-2">
+        <Spinner label="Training susceptibility model…" />
+        <p className="text-center text-[11px] text-ink-subtle">
+          Sampling inventory + terrain on Earth Engine — can take 20–40s.
+        </p>
+      </div>
+    );
+  if (!layer) return null;
+
+  const m = layer.metrics;
+  const num = (v?: number | null) => (typeof v === "number" ? v.toFixed(3) : "—");
+  const pct = (v?: number | null) =>
+    typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—";
+  const fi = layer.feature_importance ?? [];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <Mountain size={15} className="text-orange-600" /> Landslide model
+        </span>
+        <SourceBadge source={layer.source} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">F1 score</div>
+          <div className="mt-1 gradient-text text-lg font-semibold tabular-nums">{num(m?.f1)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">ROC-AUC</div>
+          <div className="mt-1 gradient-text text-lg font-semibold tabular-nums">{num(m?.roc_auc)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Precision</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">{num(m?.precision)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Recall</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">{num(m?.recall)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Accuracy</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">{pct(m?.accuracy)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="text-[11px] text-ink-subtle">Samples</div>
+          <div className="mt-1 text-base font-semibold tabular-nums text-ink">
+            {m?.n_samples ? m.n_samples.toLocaleString() : "—"}
+          </div>
+        </div>
+      </div>
+
+      {fi.length > 0 && (
+        <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <BarChart3 size={12} /> What drives susceptibility
+            </span>
+          </SectionLabel>
+          <MlFeatureImportanceChart data={fi} topFactor={layer.top_factor} />
+        </div>
+      )}
+
+      {layer.inventory && (
+        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
+          <Info size={12} className="mt-0.5 shrink-0" />
+          Trained on: {layer.inventory}
+        </p>
+      )}
     </div>
   );
 }

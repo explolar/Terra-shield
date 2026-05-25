@@ -170,6 +170,9 @@ export const weatherForecast = (aoi: AOI, days = 7) =>
 export const groundwaterStorage = (aoi: AOI) =>
   post<GroundwaterResponse>("/groundwater/storage", { aoi });
 
+export const landslideSusceptibility = (aoi: AOI, model = "random_forest") =>
+  post<LayerResponse>("/landslide/susceptibility", { aoi, model });
+
 // ---- GeoCopilot ----
 export interface LlmStatus {
   enabled: boolean;
