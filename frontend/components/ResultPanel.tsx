@@ -92,7 +92,7 @@ function AhpCard({ layer }: { layer: LayerResponse }) {
       <div className="mb-2.5 flex items-center gap-2">
         <Sigma size={15} className="text-brand-cyan" />
         <span className="text-xs font-semibold text-ink">Factor weights</span>
-        {ahp && (
+        {ahp && typeof ahp.consistency_ratio === "number" && (
           <span
             className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
               ahp.consistent

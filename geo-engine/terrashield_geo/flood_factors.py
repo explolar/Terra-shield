@@ -188,8 +188,13 @@ def compute_susceptibility(geom, weights=None):  # pragma: no cover
     from . import gee
 
     ee = gee.get_ee()
-    ahp = ahp_report() if weights is None else {
-        "weights": weights, "consistency_ratio": None, "consistent": True}
+    report = ahp_report()
+    if weights is None:
+        ahp = report
+    else:
+        # User-tuned weights still report the model's AHP consistency (the CR is a
+        # property of the fixed pairwise matrix, not the slider overrides).
+        ahp = {**report, "weights": weights}
     w = ahp["weights"]
     factors = compute_factor_layers(geom)
     composite = ee.Image(0).toFloat()
