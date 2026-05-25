@@ -710,6 +710,13 @@ export function LandslidePanel({
         </div>
       )}
 
+      {layer.legend?.length > 0 && (
+        <div>
+          <SectionLabel>Susceptibility</SectionLabel>
+          <Legend legend={layer.legend} />
+        </div>
+      )}
+
       {layer.inventory && (
         <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
           <Info size={12} className="mt-0.5 shrink-0" />

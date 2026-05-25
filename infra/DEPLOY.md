@@ -157,7 +157,7 @@ gcloud builds submit --config infra/cloudbuild.backend.yaml \
 gcloud run deploy terrashield-backend \
   --image $REGION-docker.pkg.dev/$RUN_PROJECT/terrashield/backend \
   --region $REGION --allow-unauthenticated --port 8000 \
-  --min-instances 1 --memory 2Gi --cpu 1 --timeout 300 \
+  --min-instances 1 --memory 4Gi --cpu 2 --timeout 300 \
   --update-secrets=/secrets/ee-key.json=terrashield-ee-key:latest,TERRASHIELD_LLM_API_KEY=terrashield-llm-key:latest \
   --set-env-vars=TERRASHIELD_ENV=production,TERRASHIELD_GEE_PROJECT=xward-481405,TERRASHIELD_GEE_SA_KEY=/secrets/ee-key.json,TERRASHIELD_LLM_PROVIDER=groq,TERRASHIELD_LLM_MODEL=llama-3.3-70b-versatile
 # note the printed backend URL → BACKEND_URL

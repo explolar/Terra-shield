@@ -269,7 +269,7 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
         lambda f: f.set("label", 0))
     points = presence.merge(absence)
 
-    samples = stack.sampleRegions(collection=points, properties=["label"], scale=30,
+    samples = stack.sampleRegions(collection=points, properties=["label"], scale=90,
                                   tileScale=4, geometries=False).getInfo()
     rows, ys = [], []
     for f in samples.get("features", []):
@@ -289,14 +289,14 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
     stats = {"area_km2": norm["area_km2"]}
     try:
         training = stack.sampleRegions(collection=points, properties=["label"],
-                                       scale=30, tileScale=4)
-        clf = (ee.Classifier.smileRandomForest(200)
+                                       scale=90, tileScale=4)
+        clf = (ee.Classifier.smileRandomForest(120)
                .setOutputMode("PROBABILITY")
                .train(training, "label", FACTORS))
         prob_img = stack.classify(clf).rename("susceptibility").clip(geom)
         # Bilinear → a smooth, interpolated susceptibility surface (not blocky).
         tile_url = tiles.image_tile_url(prob_img, _VIZ, resample="bilinear")
-        mean = ee.Number(prob_img.reduceRegion(ee.Reducer.mean(), geom, 90,
+        mean = ee.Number(prob_img.reduceRegion(ee.Reducer.mean(), geom, 300,
                          maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
         stats["mean_susceptibility"] = round(float(mean.getInfo() or 0), 3)
     except Exception as exc:

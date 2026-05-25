@@ -154,13 +154,12 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     proj_img = period_mean(scenario, h0, h1)
     delta_img = proj_img.subtract(base_img).rename("delta")
 
-    def region_mean(img):
-        v = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=27830,
-                             maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
-        return ee.Number(ee.Algorithms.If(v, v, 0)).getInfo()
-
-    baseline_val = region_mean(base_img)
-    projected_val = region_mean(proj_img)
+    # One batched reduction for baseline + projected (was two round-trips).
+    bp = (base_img.rename("b").addBands(proj_img.rename("p"))
+          .reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=27830,
+                        maxPixels=1e9, bestEffort=True, tileScale=4).getInfo())
+    baseline_val = float(bp.get("b") or 0)
+    projected_val = float(bp.get("p") or 0)
     delta = projected_val - baseline_val
 
     span = abs(delta) * 2 or 1

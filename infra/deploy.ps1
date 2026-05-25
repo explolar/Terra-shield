@@ -40,7 +40,7 @@ if ($Groq) {
 }
 
 Write-Host "==> Deploying backend..." -ForegroundColor Cyan
-gcloud run deploy terrashield-backend --image "$AR/backend" --region $Region --allow-unauthenticated --port 8000 --min-instances 1 --memory 2Gi --cpu 1 --timeout 300 --update-secrets="$secrets" --set-env-vars="$envVars"
+gcloud run deploy terrashield-backend --image "$AR/backend" --region $Region --allow-unauthenticated --port 8000 --min-instances 1 --memory 4Gi --cpu 2 --timeout 300 --update-secrets="$secrets" --set-env-vars="$envVars"
 Assert-Ok "backend deploy"
 
 $BackendUrl = (gcloud run services describe terrashield-backend --region $Region --format="value(status.url)")

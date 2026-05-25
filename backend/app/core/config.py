@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     gee_sa_key: str | None = None
 
     # --- performance ---
-    cache_ttl_seconds: int = 900
+    cache_ttl_seconds: int = 3600
     rate_limit_per_min: int = 60
 
     # --- GeoCopilot LLM (Llama by default) ---

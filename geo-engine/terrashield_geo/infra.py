@@ -142,7 +142,7 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
     # Flood hazard footprint proxy: low-lying terrain (bottom 30% of elevation).
     # Resolve the threshold to a Python float so the comparison casts cleanly.
     p30 = dem.reduceRegion(
-        reducer=ee.Reducer.percentile([30]), geometry=geom, scale=90,
+        reducer=ee.Reducer.percentile([30]), geometry=geom, scale=300,
         maxPixels=1e9, bestEffort=True,
     ).values().get(0).getInfo()
     hazard_mask = dem.lte(p30 if p30 is not None else 99999)
@@ -153,11 +153,13 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
         v = d.values().get(0)
         return ee.Number(ee.Algorithms.If(v, v, 0)).getInfo()
 
+    # Coarser scales for much faster reductions (population/built-up totals stay
+    # representative at AOI scale).
     built_km2_img = builtup.multiply(ee.Image.pixelArea()).divide(1e6)
-    total_pop = _sum(pop, 100)
-    exposed_pop = _sum(pop.updateMask(hazard_mask), 100)
-    built_total = _sum(built_km2_img, 20)
-    built_exposed = _sum(built_km2_img.updateMask(hazard_mask), 20)
+    total_pop = _sum(pop, 300)
+    exposed_pop = _sum(pop.updateMask(hazard_mask), 300)
+    built_total = _sum(built_km2_img, 100)
+    built_exposed = _sum(built_km2_img.updateMask(hazard_mask), 100)
 
     return {
         "module": "infra",

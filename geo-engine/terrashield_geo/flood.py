@@ -160,23 +160,19 @@ def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pra
         for name, img in factors.items()
     }
 
+    # One batched reduction (coarse scale) instead of three round-trips:
+    #  - mean class, high-risk area (classes >=4), and the AoA data-support share.
     px = ee.Image.pixelArea()
-    mean = ee.Number(composite.reduceRegion(
-        ee.Reducer.mean(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
-    ).values().get(0))
-    high = composite.gte(4).multiply(px).reduceRegion(
-        ee.Reducer.sum(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
-    ).values().get(0)
-    high_km2 = round((ee.Number(ee.Algorithms.If(high, high, 0)).getInfo() or 0) / 1e6, 2)
-    mean_class = round(mean.getInfo() or 0, 2)
-
-    # Data-support proxy for the Area of Applicability: share of the AOI where every
-    # conditioning factor has valid data (masked pixels = no model support, e.g. over
-    # ocean/nodata). Keeps the live reliability shape consistent with the demo path.
-    applicable = ee.Number(composite.mask().reduceRegion(
-        ee.Reducer.mean(), geom, 100, maxPixels=1e9, bestEffort=True, tileScale=4,
-    ).values().get(0))
-    applicable_pct = round((applicable.getInfo() or 0) * 100, 1)
+    stat_img = (composite.rename("mean")
+                .addBands(composite.mask().rename("appl"))
+                .addBands(composite.gte(4).multiply(px).rename("higharea")))
+    s = stat_img.reduceRegion(
+        ee.Reducer.mean().combine(ee.Reducer.sum(), sharedInputs=True),
+        geom, 300, maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).getInfo()
+    mean_class = round(s.get("mean_mean") or 0, 2)
+    applicable_pct = round((s.get("appl_mean") or 0) * 100, 1)
+    high_km2 = round((s.get("higharea_sum") or 0) / 1e6, 2)
 
     return {
         "module": "flood",
