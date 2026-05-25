@@ -160,19 +160,19 @@ def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pra
         for name, img in factors.items()
     }
 
-    # One batched reduction (coarse scale) instead of three round-trips:
-    #  - mean class, high-risk area (classes >=4), and the AoA data-support share.
+    # Batched reductions at a coarse scale (was 3 round-trips, now 2). One mean
+    # call covers the mean class + the AoA data-support share (keys = band names);
+    # one sum call covers the high-risk (classes >=4) area.
     px = ee.Image.pixelArea()
-    stat_img = (composite.rename("mean")
-                .addBands(composite.mask().rename("appl"))
-                .addBands(composite.gte(4).multiply(px).rename("higharea")))
-    s = stat_img.reduceRegion(
-        ee.Reducer.mean().combine(ee.Reducer.sum(), sharedInputs=True),
-        geom, 300, maxPixels=1e9, bestEffort=True, tileScale=4,
-    ).getInfo()
-    mean_class = round(s.get("mean_mean") or 0, 2)
-    applicable_pct = round((s.get("appl_mean") or 0) * 100, 1)
-    high_km2 = round((s.get("higharea_sum") or 0) / 1e6, 2)
+    mm = (composite.rename("mean").addBands(composite.mask().rename("appl"))
+          .reduceRegion(ee.Reducer.mean(), geom, 300,
+                        maxPixels=1e9, bestEffort=True, tileScale=4).getInfo())
+    mean_class = round(mm.get("mean") or 0, 2)
+    applicable_pct = round((mm.get("appl") or 0) * 100, 1)
+    high = composite.gte(4).multiply(px).reduceRegion(
+        ee.Reducer.sum(), geom, 300, maxPixels=1e9, bestEffort=True, tileScale=4,
+    ).values().get(0)
+    high_km2 = round((ee.Number(ee.Algorithms.If(high, high, 0)).getInfo() or 0) / 1e6, 2)
 
     return {
         "module": "flood",

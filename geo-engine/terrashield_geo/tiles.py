@@ -6,7 +6,10 @@ on the live path only. Legends work in both modes.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+log = logging.getLogger("terrashield.geo.tiles")
 
 # Reusable color ramps (low → high).
 RAMPS: dict[str, list[str]] = {
@@ -43,18 +46,26 @@ def build_legend(
     return out
 
 
-def image_tile_url(image: Any, vis_params: dict[str, Any], resample: str | None = "bilinear") -> str:
-    """Return an XYZ tile-URL template for a styled ``ee.Image`` (live path).
-
-    ``resample`` ("bilinear" | "bicubic") renders every layer as a smooth,
-    interpolated surface instead of blocky native pixels. Pass ``None`` to keep
-    nearest-neighbour (e.g. for a strictly categorical layer you want crisp).
-    """
-    img = image.resample(resample) if resample else image
-    styled = img.visualize(**vis_params)
-    mapid = styled.getMapId()
+def _mapid_url(image: Any, vis_params: dict[str, Any]) -> str:
+    mapid = image.visualize(**vis_params).getMapId()
     # Newer earthengine-api returns a ready tile_fetcher with the template.
     fetcher = mapid.get("tile_fetcher")
     if fetcher is not None:
         return fetcher.url_format
     return mapid["tile_fetcher"].url_format
+
+
+def image_tile_url(image: Any, vis_params: dict[str, Any], resample: str | None = "bilinear") -> str:
+    """Return an XYZ tile-URL template for a styled ``ee.Image`` (live path).
+
+    Every layer renders as a smooth, **interpolated** surface (``resample``,
+    default "bilinear") instead of blocky native pixels. Robust: if an image
+    can't be resampled (e.g. a classifier output with no fixed projection), it
+    falls back to a normal render so the layer never fails to produce a tile.
+    """
+    if resample:
+        try:
+            return _mapid_url(image.resample(resample), vis_params)
+        except Exception as exc:  # pragma: no cover - environment dependent
+            log.warning("resample(%s) failed, rendering without it: %s", resample, exc)
+    return _mapid_url(image, vis_params)
