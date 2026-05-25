@@ -93,6 +93,7 @@ export interface LayerResponse {
   feature_importance?: MlFeatureImportance[];
   top_factor?: string;
   inventory?: string;
+  live_error?: string; // why a live run fell back to demo (diagnostic)
 }
 
 // Richer stats returned by /flood/sar-extent (live mode). All optional —

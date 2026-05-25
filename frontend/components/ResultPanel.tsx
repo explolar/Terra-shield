@@ -716,6 +716,12 @@ export function LandslidePanel({
           Trained on: {layer.inventory}
         </p>
       )}
+
+      {layer.live_error && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-700">
+          Live run fell back to demo: {layer.live_error}
+        </p>
+      )}
     </div>
   );
 }

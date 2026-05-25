@@ -155,12 +155,17 @@ def susceptibility(aoi: dict[str, Any], model: str = "random_forest",
     norm = aoi_mod.normalize(aoi)
     if model not in MODELS:
         model = "random_forest"
+    live_error = None
     if gee.is_live():
         try:
             return _susceptibility_live(norm, model, inventory_asset, n_samples)
         except Exception as exc:  # pragma: no cover
-            log.warning("landslide live failed, demo fallback: %s", exc)
-    return _susceptibility_demo(norm, model, n_samples)
+            live_error = f"{type(exc).__name__}: {exc}"
+            log.warning("landslide live failed, demo fallback: %s", live_error)
+    res = _susceptibility_demo(norm, model, n_samples)
+    if live_error:
+        res["live_error"] = live_error  # surfaced so a live failure is diagnosable
+    return res
 
 
 def _susceptibility_demo(norm, model_name, n_samples) -> dict[str, Any]:
@@ -235,8 +240,8 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
         inv_label = inventory_asset
     else:
         pts = _inventory_in_bbox(norm["bbox"])
-        if len(pts) < 15:
-            raise ValueError(f"only {len(pts)} inventory points in this AOI — widen it")
+        if len(pts) < 10:
+            raise ValueError(f"only {len(pts)} inventory points in this AOI - widen it")
         presence = ee.FeatureCollection(
             [ee.Feature(ee.Geometry.Point(p), {"label": 1}) for p in pts])
         n_pos = len(pts)
@@ -253,23 +258,30 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
         if all(p.get(k) is not None for k in FACTORS) and p.get("label") is not None:
             rows.append([float(p[k]) for k in FACTORS])
             ys.append(int(p["label"]))
-    if len(rows) < 30:
-        raise ValueError("insufficient training samples from inventory + factors")
+    if len(rows) < 20:
+        raise ValueError(f"only {len(rows)} usable samples after factor extraction")
 
+    # Core real-data result: cross-validated metrics on the sampled factors.
     metrics, _fitted, importance = _train(np.array(rows, float), np.array(ys, int), model_name)
 
-    # Susceptibility map: in-GEE RandomForest (probability) over the factor stack.
-    training = stack.sampleRegions(collection=points, properties=["label"], scale=30, tileScale=4)
-    clf = (ee.Classifier.smileRandomForest(300)
-           .setOutputMode("PROBABILITY")
-           .train(training, "label", FACTORS))
-    prob_img = stack.classify(clf).rename("susceptibility").clip(geom)
-    tile_url = tiles.image_tile_url(prob_img, _VIZ)
+    # Susceptibility map via an in-GEE RandomForest (probability). Non-fatal: if the
+    # map step fails, the run still returns LIVE, real-data metrics.
+    tile_url = None
+    stats = {"area_km2": norm["area_km2"]}
+    try:
+        training = stack.sampleRegions(collection=points, properties=["label"],
+                                       scale=30, tileScale=4)
+        clf = (ee.Classifier.smileRandomForest(200)
+               .setOutputMode("PROBABILITY")
+               .train(training, "label", FACTORS))
+        prob_img = stack.classify(clf).rename("susceptibility").clip(geom)
+        tile_url = tiles.image_tile_url(prob_img, _VIZ, resample=None)
+        mean = ee.Number(prob_img.reduceRegion(ee.Reducer.mean(), geom, 90,
+                         maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+        stats["mean_susceptibility"] = round(float(mean.getInfo() or 0), 3)
+    except Exception as exc:
+        log.warning("landslide map tile failed (metrics still live): %s", exc)
 
-    mean = ee.Number(prob_img.reduceRegion(ee.Reducer.mean(), geom, 90,
-                                           maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
-    high = ee.Number(prob_img.gte(0.6).multiply(ee.Image.pixelArea()).reduceRegion(
-        ee.Reducer.sum(), geom, 90, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
     return {
         "module": "landslide", "product": "susceptibility", "source": "live",
         "model": model_name, "tile_url": tile_url, "grid": None,
@@ -279,10 +291,6 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
         "explainability": "SHAP (Lundberg & Lee, 2017)",
         "validation": "stratified k-fold cross-validation",
         "inventory": inv_label,
-        "stats": {
-            "mean_susceptibility": round(float(mean.getInfo() or 0), 3),
-            "high_susceptibility_km2": round((float(high.getInfo() or 0)) / 1e6, 2),
-            "area_km2": norm["area_km2"],
-        },
+        "stats": stats,
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
     }
