@@ -76,6 +76,20 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
+// AOI size guard — keep Earth Engine requests within safe limits (matches the
+// backend caps). Coarse climate/groundwater layers allow a larger area.
+const FINE_MAX_KM2 = 50_000;
+const COARSE_MAX_KM2 = 1_000_000;
+const COARSE_MODULES = new Set<ModuleId>(["climate", "groundwater"]);
+
+function bboxAreaKm2(b: [number, number, number, number]): number {
+  const [minLon, minLat, maxLon, maxLat] = b;
+  const meanLat = (((minLat + maxLat) / 2) * Math.PI) / 180;
+  const w = (maxLon - minLon) * 111.32 * Math.cos(meanLat);
+  const h = (maxLat - minLat) * 110.57;
+  return Math.abs(w * h);
+}
+
 export default function Dashboard() {
   // --- engine status ---
   const [status, setStatus] = useState<EarthdataStatus | null>(null);
@@ -436,10 +450,19 @@ export default function Dashboard() {
   }
 
   function onDrawComplete(b: [number, number, number, number]) {
+    setDrawMode(false);
+    const max = COARSE_MODULES.has(moduleId) ? COARSE_MAX_KM2 : FINE_MAX_KM2;
+    const km2 = bboxAreaKm2(b);
+    if (km2 > max) {
+      setError(
+        `That area is too large (~${Math.round(km2).toLocaleString()} km²). ` +
+          `Draw a box under ${max.toLocaleString()} km² so Earth Engine can process it.`,
+      );
+      return; // keep the previous AOI
+    }
     setBbox(b);
     setActiveLocId(null);
     setActiveStateName(null);
-    setDrawMode(false);
     clearOrOverlays();
   }
 

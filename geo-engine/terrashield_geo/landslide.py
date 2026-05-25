@@ -76,6 +76,18 @@ def _inventory_in_bbox(bbox, cap: int = 4000) -> list[list[float]]:
     return pts
 
 
+def _presence_points(bbox, target: int = 30):
+    """Inventory points around the AOI, expanding a buffer until there are enough
+    to train a regional model. Returns (points, buffer_degrees)."""
+    pts: list[list[float]] = []
+    for buf in (0.0, 0.3, 0.6, 1.0):
+        b = [bbox[0] - buf, bbox[1] - buf, bbox[2] + buf, bbox[3] + buf]
+        pts = _inventory_in_bbox(b, cap=2500)
+        if len(pts) >= target:
+            return pts, buf
+    return pts, 1.0
+
+
 def _make_model(name: str):
     if name == "xgboost":
         try:
@@ -218,9 +230,9 @@ def _factor_stack(ee, geom):  # pragma: no cover
     rainfall = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
                 .filterDate("2014-01-01", "2024-01-01").select("precipitation")
                 .sum().divide(10).clip(geom).rename("rainfall"))
-    ndvi = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-            .filterBounds(geom).filterDate("2023-01-01", "2024-01-01")
-            .median().normalizedDifference(["B8", "B4"]).rename("ndvi"))
+    ndvi = (ee.ImageCollection("MODIS/061/MOD13A2")
+            .filterDate("2023-01-01", "2024-01-01").select("NDVI")
+            .mean().multiply(0.0001).rename("ndvi"))
     landcover = ee.Image("ESA/WorldCover/v200/2021").select("Map").rename("landcover")
     return ee.Image.cat([slope, elevation, aspect, curvature, twi,
                          dist_river, rainfall, ndvi, landcover]).clip(geom)
@@ -229,24 +241,31 @@ def _factor_stack(ee, geom):  # pragma: no cover
 def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[str, Any]:  # pragma: no cover
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
-    stack = _factor_stack(ee, geom)
 
-    # Presence: a user-supplied EE asset if given, else the bundled national
-    # inventory filtered to the AOI. Pseudo-absence is sampled across the AOI.
+    # Presence labels: a user-supplied EE asset, else the bundled national
+    # inventory. Sparse AOIs auto-expand a buffer so we still train a real
+    # *regional* model and then predict susceptibility for the AOI.
     if inventory_asset:
+        train_geom = geom
         presence = ee.FeatureCollection(inventory_asset).filterBounds(geom).map(
             lambda f: f.set("label", 1))
         n_pos = 500
         inv_label = inventory_asset
     else:
-        pts = _inventory_in_bbox(norm["bbox"])
+        pts, buf = _presence_points(norm["bbox"])
         if len(pts) < 10:
-            raise ValueError(f"only {len(pts)} inventory points in this AOI - widen it")
+            raise ValueError(f"only {len(pts)} inventory points within {buf:g} deg of the AOI")
+        bb = norm["bbox"]
+        train_geom = ee.Geometry.Rectangle([bb[0] - buf, bb[1] - buf, bb[2] + buf, bb[3] + buf])
         presence = ee.FeatureCollection(
             [ee.Feature(ee.Geometry.Point(p), {"label": 1}) for p in pts])
         n_pos = len(pts)
-        inv_label = f"national landslide inventory ({len(pts)} presence pts in AOI)"
-    absence = ee.FeatureCollection.randomPoints(geom, max(n_pos, 50), 42).map(
+        scope = "this AOI" if buf == 0 else f"a ~{buf:g} deg region"
+        inv_label = f"national landslide inventory ({len(pts)} presence pts, {scope})"
+
+    # Factor stack over the training region; pseudo-absence sampled there too.
+    stack = _factor_stack(ee, train_geom)
+    absence = ee.FeatureCollection.randomPoints(train_geom, max(n_pos, 50), 42).map(
         lambda f: f.set("label", 0))
     points = presence.merge(absence)
 
@@ -275,7 +294,8 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
                .setOutputMode("PROBABILITY")
                .train(training, "label", FACTORS))
         prob_img = stack.classify(clf).rename("susceptibility").clip(geom)
-        tile_url = tiles.image_tile_url(prob_img, _VIZ, resample=None)
+        # Bilinear → a smooth, interpolated susceptibility surface (not blocky).
+        tile_url = tiles.image_tile_url(prob_img, _VIZ, resample="bilinear")
         mean = ee.Number(prob_img.reduceRegion(ee.Reducer.mean(), geom, 90,
                          maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
         stats["mean_susceptibility"] = round(float(mean.getInfo() or 0), 3)
