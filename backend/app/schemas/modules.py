@@ -116,6 +116,13 @@ class GroundwaterRequest(BaseModel):
     aoi: AOI
 
 
+# ---- LandslideAI (ML susceptibility) ------------------------------------- #
+class LandslideRequest(BaseModel):
+    aoi: AOI
+    model: str = "random_forest"            # random_forest | xgboost | gbm
+    inventory_asset: str | None = None      # GEE FeatureCollection of landslide points
+
+
 # ---- GeoCopilot ----------------------------------------------------------- #
 class CopilotRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)

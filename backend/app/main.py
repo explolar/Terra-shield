@@ -22,6 +22,7 @@ from .api.routes import (
     groundwater,
     health,
     infra,
+    landslide,
     optimize,
 )
 
@@ -77,7 +78,7 @@ def create_app() -> FastAPI:
 
     prefix = settings.api_prefix
     for module in (health, earthdata, flood, climate, drought, infra, optimize,
-                   forecast, groundwater, copilot):
+                   forecast, groundwater, landslide, copilot):
         app.include_router(module.router, prefix=prefix)
 
     @app.get("/", tags=["system"])
