@@ -136,13 +136,16 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     base0, base1 = 2005, 2014  # representative recent-baseline decade
     coll = ee.ImageCollection("NASA/GDDP-CMIP6").filter(ee.Filter.eq("model", rep_model))
 
+    # NOTE: intentionally NOT clipped — clipping to a sub-cell AOI masks the
+    # neighbouring CMIP6 cells, leaving bilinear resampling nothing to interpolate
+    # against (the "single flat cell" symptom). reduceRegion below is bounded by
+    # geom regardless, so the stats are unchanged.
     def period_mean(scen, y0, y1):
         img = (
             coll.filter(ee.Filter.eq("scenario", scen))
             .filter(ee.Filter.calendarRange(y0, y1, "year"))
             .select(variable)
             .mean()
-            .clip(geom)
         )
         if variable == "pr":
             img = img.multiply(86400 * 365)  # kg/m²/s -> mm/yr
@@ -164,7 +167,12 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
 
     span = abs(delta) * 2 or 1
     vis = {"min": -span, "max": span, "palette": tiles.RAMPS[meta["ramp"]]}
-    tile_url = tiles.image_tile_url(delta_img, vis)
+    # Clip the TILE to a buffered AOI (~60 km, ≈ 2 CMIP6 cells) so bilinear
+    # interpolation has neighbour cells and renders a smooth gradient over the
+    # AOI instead of one flat 0.25° block. This is visual interpolation of coarse
+    # data, not true downscaling — it adds no real sub-grid information.
+    tile_img = delta_img.clip(geom.buffer(60000))
+    tile_url = tiles.image_tile_url(tile_img, vis)
 
     # Trajectory for the result/chat curve: interpolate between the two real
     # decade-mean endpoints (baseline -> horizon). A trend line, not per-year obs.
