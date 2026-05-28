@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Globe2, Loader2 } from "lucide-react";
+import { Globe2, Loader2 } from "lucide-react";
 import { Wordmark } from "@/components/Logo";
 import type { EarthdataStatus } from "@/lib/types";
 
@@ -22,12 +22,6 @@ export function TopBar({
 
       <div className="flex items-center gap-2 sm:gap-3">
         <EngineBadge status={status} loading={statusLoading} />
-        <Link
-          href="/"
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs text-ink-muted shadow-xs transition hover:border-brand-cyan/50 hover:text-ink"
-        >
-          <ArrowLeft size={13} /> <span className="hidden sm:inline">Home</span>
-        </Link>
       </div>
     </header>
   );
