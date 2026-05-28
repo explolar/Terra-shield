@@ -16,11 +16,39 @@ log = logging.getLogger("terrashield.geo.infra")
 
 
 def road_criticality(aoi: dict[str, Any], grid_n: int = 9) -> dict[str, Any]:
-    """Rank road segments by edge-betweenness centrality — the share of shortest
-    paths that traverse each segment. High-betweenness roads are the network's
-    critical links: losing them (e.g. to flooding) fragments connectivity the most
-    (Freeman, 1977; road-criticality literature). Deterministic; works offline.
-    """
+    """Rank road segments by edge-betweenness centrality. Uses the REAL OSM road
+    network (Overpass) when online; falls back to a synthetic lattice if Overpass
+    is unavailable. (Gauthier et al., 2018; road-criticality literature.)"""
+    norm = aoi_mod.normalize(aoi)
+    if gee.is_live():  # production: try real roads
+        try:
+            from . import roads
+
+            r = roads.road_criticality_osm(norm["bbox"])
+            return {
+                "module": "infra", "product": "road_criticality", "source": "live",
+                "tile_url": None,
+                "grid": {"type": "FeatureCollection", "features": r["features"]},
+                "legend": [
+                    {"label": "Critical", "color": "#b91c1c"},
+                    {"label": "Important", "color": "#f59e0b"},
+                    {"label": "Normal", "color": "#64748b"},
+                ],
+                "stats": {
+                    "segments": r["n_segments"],
+                    "critical_segments": r["n_critical"],
+                    "method": "edge betweenness centrality on OSM roads (NetworkX)",
+                    "area_km2": norm["area_km2"],
+                },
+                "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+            }
+        except Exception as exc:  # pragma: no cover
+            log.warning("OSM criticality failed, lattice fallback: %s", exc)
+    return _criticality_lattice(aoi, grid_n)
+
+
+def _criticality_lattice(aoi: dict[str, Any], grid_n: int = 9) -> dict[str, Any]:
+    """Synthetic-lattice fallback when real OSM roads aren't available (offline)."""
     import networkx as nx
     import numpy as np
 
