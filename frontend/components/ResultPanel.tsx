@@ -1336,6 +1336,18 @@ export function ResultPanel({
         </div>
       )}
 
+      {/* climate: downscaling provenance — honest about how the 1 km map is made */}
+      {moduleId === "climate" && layer.downscaled && (
+        <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
+          <Info size={12} className="mt-0.5 shrink-0" />
+          <span>
+            Map {layer.native_resolution ?? "downscaled"} via{" "}
+            {layer.downscale_method ?? "change-factor downscaling"}
+            {layer.baseline_source ? `, baseline ${layer.baseline_source}` : ""}.
+          </span>
+        </p>
+      )}
+
       {/* FloodAI: live 7-day flood nowcast chip (fire-and-forget; hidden on fail) */}
       {isFloodSusc && floodWatch && (
         <div className="flex flex-wrap items-center gap-2">

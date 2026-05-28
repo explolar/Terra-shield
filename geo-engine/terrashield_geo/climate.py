@@ -136,10 +136,9 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     base0, base1 = 2005, 2014  # representative recent-baseline decade
     coll = ee.ImageCollection("NASA/GDDP-CMIP6").filter(ee.Filter.eq("model", rep_model))
 
-    # NOTE: intentionally NOT clipped — clipping to a sub-cell AOI masks the
-    # neighbouring CMIP6 cells, leaving bilinear resampling nothing to interpolate
-    # against (the "single flat cell" symptom). reduceRegion below is bounded by
-    # geom regardless, so the stats are unchanged.
+    # NOTE: intentionally NOT clipped — the coarse means feed the change factor,
+    # which is resampled onto the fine baseline; clipping to a sub-cell AOI would
+    # mask the neighbouring CMIP6 cells the bilinear resample needs.
     def period_mean(scen, y0, y1):
         img = (
             coll.filter(ee.Filter.eq("scenario", scen))
@@ -153,26 +152,48 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
             img = img.subtract(273.15)  # K -> °C
         return img.rename(variable)
 
-    base_img = period_mean("historical", base0, base1)
-    proj_img = period_mean(scenario, h0, h1)
-    delta_img = proj_img.subtract(base_img).rename("delta")
+    base_c = period_mean("historical", base0, base1)   # coarse 0.25° CMIP6 means
+    proj_c = period_mean(scenario, h0, h1)
 
-    # One batched reduction for baseline + projected (was two round-trips).
-    bp = (base_img.rename("b").addBands(proj_img.rename("p"))
-          .reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=27830,
-                        maxPixels=1e9, bestEffort=True, tileScale=4).getInfo())
-    baseline_val = float(bp.get("b") or 0)
-    projected_val = float(bp.get("p") or 0)
+    # Change-factor (delta) downscaling: carry the coarse CMIP6 change signal onto
+    # WorldClim's observed ~1 km climatology — multiplicative for precipitation,
+    # additive for temperature. Yields a genuinely ~1 km projected field that is
+    # bias-corrected against the observed baseline, not just an interpolated cell.
+    wc = ee.ImageCollection("WORLDCLIM/V1/MONTHLY")
+    if variable == "pr":
+        wc_base = wc.select("prec").sum().rename(variable)               # mm/yr @ ~1 km
+        factor = proj_c.divide(base_c.max(1)).resample("bilinear")       # P_fut/P_hist
+        proj_fine = wc_base.multiply(factor).rename(variable)
+    else:
+        band = "tmax" if variable == "tasmax" else "tavg"
+        wc_base = wc.select(band).mean().multiply(0.1).rename(variable)  # °C @ ~1 km
+        diff = proj_c.subtract(base_c).resample("bilinear")              # T_fut - T_hist
+        proj_fine = wc_base.add(diff).rename(variable)
+
+    # One getInfo: observed baseline mean, downscaled projected mean, and a 2–98
+    # percentile range over the AOI for the map colour scale.
+    def _mean(img):
+        return img.reduceRegion(ee.Reducer.mean(), geom, 1000, maxPixels=1e9,
+                                bestEffort=True, tileScale=4).values().get(0)
+
+    pcts = proj_fine.reduceRegion(ee.Reducer.percentile([2, 98]), geom, 1000,
+                                  maxPixels=1e9, bestEffort=True, tileScale=4)
+    out = ee.Dictionary({"base": _mean(wc_base), "proj": _mean(proj_fine),
+                         "lo": pcts.values().get(0), "hi": pcts.values().get(1)}).getInfo()
+    baseline_val = float(out.get("base") or 0)
+    projected_val = float(out.get("proj") or 0)
     delta = projected_val - baseline_val
 
-    span = abs(delta) * 2 or 1
-    vis = {"min": -span, "max": span, "palette": tiles.RAMPS[meta["ramp"]]}
-    # Clip the TILE to a buffered AOI (~60 km, ≈ 2 CMIP6 cells) so bilinear
-    # interpolation has neighbour cells and renders a smooth gradient over the
-    # AOI instead of one flat 0.25° block. This is visual interpolation of coarse
-    # data, not true downscaling — it adds no real sub-grid information.
-    tile_img = delta_img.clip(geom.buffer(60000))
-    tile_url = tiles.image_tile_url(tile_img, vis)
+    lo, hi = out.get("lo"), out.get("hi")
+    if lo is None or hi is None or hi <= lo:  # fallback colour range
+        if variable == "pr":
+            lo, hi = 0.0, (max(baseline_val, projected_val) * 1.3) or 1.0
+        else:
+            lo, hi = min(baseline_val, projected_val) - 1, max(baseline_val, projected_val) + 1
+    vis = {"min": round(float(lo), 2), "max": round(float(hi), 2),
+           "palette": tiles.RAMPS[meta["ramp"]]}
+    # The ~1 km projected field, bilinear-smoothed and bounded to the AOI.
+    tile_url = tiles.image_tile_url(proj_fine.clip(geom.buffer(2000)), vis)
 
     # Trajectory for the result/chat curve: interpolate between the two real
     # decade-mean endpoints (baseline -> horizon). A trend line, not per-year obs.
@@ -202,6 +223,10 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
         "tile_url": tile_url,
         "grid": None,
         "legend": tiles.build_legend(meta["ramp"], ["Low", "", "Mid", "", "High"]),
+        "downscaled": True,
+        "downscale_method": "change-factor (delta) downscaling onto WorldClim ~1 km",
+        "baseline_source": "WorldClim V1 observed climatology (~1 km)",
+        "native_resolution": "~1 km (from 0.25° CMIP6 NEX-GDDP)",
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
     }
 

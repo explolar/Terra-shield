@@ -77,6 +77,11 @@ export interface LayerResponse {
   delta?: number;
   pct_change?: number;
   timeseries?: TimeseriesPoint[];
+  // climate: present when the projection map is statistically downscaled
+  downscaled?: boolean;
+  downscale_method?: string;
+  baseline_source?: string;
+  native_resolution?: string;
 
   // drought
   scale_months?: number;
