@@ -1,14 +1,17 @@
-"""Lightweight per-IP token-bucket rate limiting (no external deps).
+"""Lightweight per-key token-bucket rate limiting (no external deps).
 
 Protects the compute endpoints from accidental hammering / GEE quota burn.
-For multi-instance production, back this with Redis instead of process memory.
+The bucket key prefers the API key, then the real client IP from
+``X-Forwarded-For`` (Cloud Run sets this; ``request.client.host`` is only the
+proxy and is useless for limiting). NOTE: state is per-process, so cap
+``--max-instances`` low or back this with Redis for multi-instance production.
 """
 from __future__ import annotations
 
 import threading
 import time
 
-from fastapi import HTTPException, Request, status
+from fastapi import Header, HTTPException, Request, status
 
 
 class TokenBucket:
@@ -31,12 +34,26 @@ class TokenBucket:
             return False, retry
 
 
+def client_key(request: Request, x_api_key: str | None) -> str:
+    """Rate-limit bucket key: API key if present (stable, not IP-spoofable),
+    else the first hop of X-Forwarded-For (the real caller behind Cloud Run),
+    else the direct peer as a last resort."""
+    if x_api_key:
+        return f"key:{x_api_key}"
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return "ip:" + xff.split(",")[0].strip()
+    return "ip:" + (request.client.host if request.client else "unknown")
+
+
 def make_rate_limiter(rate_per_min: int):
     bucket = TokenBucket(rate_per_min)
 
-    async def dependency(request: Request) -> None:
-        ip = request.client.host if request.client else "unknown"
-        ok, retry = bucket.allow(ip)
+    async def dependency(
+        request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> None:
+        ok, retry = bucket.allow(client_key(request, x_api_key))
         if not ok:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,

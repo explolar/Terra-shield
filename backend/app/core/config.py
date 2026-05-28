@@ -29,9 +29,15 @@ class Settings(BaseSettings):
     gee_project: str | None = None
     gee_sa_key: str | None = None
 
-    # --- performance ---
+    # --- auth (prototype: shared API key) ---
+    # Comma-separated accepted API keys. EMPTY = open API (local dev / tests).
+    # Set in production (via Secret Manager) to require an X-API-Key header.
+    api_keys: str = ""
+
+    # --- performance / abuse limits ---
     cache_ttl_seconds: int = 3600
-    rate_limit_per_min: int = 60
+    rate_limit_per_min: int = 60          # general compute endpoints, per key/IP
+    copilot_rate_limit_per_min: int = 12  # stricter: copilot calls the paid LLM
 
     # --- GeoCopilot LLM (Llama by default) ---
     # provider: groq | ollama | none
@@ -47,6 +53,14 @@ class Settings(BaseSettings):
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def api_key_set(self) -> set[str]:
+        return {k.strip() for k in self.api_keys.split(",") if k.strip()}
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.api_key_set)
 
     @property
     def is_prod(self) -> bool:

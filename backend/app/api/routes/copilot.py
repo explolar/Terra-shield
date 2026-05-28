@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends
 
 from ...schemas.modules import CopilotRequest
 from ...services import copilot, llm
-from ..deps import rate_limit
+from ..deps import copilot_rate_limit
 
-router = APIRouter(prefix="/copilot", tags=["GeoCopilot"], dependencies=[Depends(rate_limit)])
+router = APIRouter(prefix="/copilot", tags=["GeoCopilot"],
+                   dependencies=[Depends(copilot_rate_limit)])
 
 
 @router.get("/tools")

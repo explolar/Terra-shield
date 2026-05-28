@@ -34,6 +34,10 @@ import type {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
 
+// Prototype auth: sent as X-API-Key when configured. Baked into the bundle at
+// build time, so it's not a true secret — it gates casual abuse + throttling.
+export const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+
 export class ApiError extends Error {
   status: number;
   detail?: string;
@@ -55,6 +59,7 @@ async function request<T>(
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
         ...(options.headers || {}),
       },
     });

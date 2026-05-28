@@ -4,12 +4,13 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from terrashield_geo import gee
 
+from .api.deps import require_api_key
 from .core.config import get_settings
 from .core.logging import RequestContextMiddleware, configure_logging
 from .api.routes import (
@@ -77,9 +78,13 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
 
     prefix = settings.api_prefix
-    for module in (health, earthdata, flood, climate, drought, infra, optimize,
+    # Health stays open for uptime/Cloud Run probes; everything else requires the
+    # API key when one is configured (open in dev/tests, enforced in prod).
+    app.include_router(health.router, prefix=prefix)
+    protected = [Depends(require_api_key)]
+    for module in (earthdata, flood, climate, drought, infra, optimize,
                    forecast, groundwater, landslide, copilot):
-        app.include_router(module.router, prefix=prefix)
+        app.include_router(module.router, prefix=prefix, dependencies=protected)
 
     @app.get("/", tags=["system"])
     def root() -> dict:
