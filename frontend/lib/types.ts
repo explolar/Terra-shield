@@ -412,6 +412,9 @@ export interface GroundwaterStats {
   recharge_proxy_mm_yr: number | null;
   area_km2: number;
   dataset?: string;
+  native_resolution?: string;
+  regional_note?: string;
+  n_observations?: number;
 }
 
 export interface GroundwaterResponse {

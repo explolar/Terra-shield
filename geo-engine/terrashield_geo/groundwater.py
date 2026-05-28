@@ -71,6 +71,12 @@ def _groundwater_demo(norm) -> dict[str, Any]:
             "depletion_trend_cm_yr": round(trend, 2),
             "stress_class": _classify(trend),
             "recharge_proxy_mm_yr": round(float(rng.uniform(-200, 400)), 0),
+            "native_resolution": "~3° mascon (~330 km)",
+            "regional_note": (
+                "GRACE resolves total water storage at regional scale (~330 km / "
+                "~150,000 km² per mascon). Values represent the wider aquifer system "
+                "around this AOI, not a single field or well."
+            ),
             "area_km2": norm["area_km2"],
         },
         "aoi": {"bbox": bbox, "centroid": norm["centroid"]},
@@ -78,6 +84,8 @@ def _groundwater_demo(norm) -> dict[str, Any]:
 
 
 def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
+    import numpy as np
+
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
     # GRACE V04 ships three solutions (CSR/GFZ/JPL); the recommended estimate is
@@ -88,7 +96,8 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
             .copyProperties(img, ["system:time_start"])
     )
 
-    # Region-mean monthly anomaly series -> linear trend (cm/yr).
+    # Region-mean monthly anomaly series. One getInfo pulls every (t, v) point;
+    # the trend is then fit client-side (avoids a second server round-trip).
     def to_feat(img):
         v = img.reduceRegion(ee.Reducer.mean(), geom, 50000,
                              maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
@@ -96,14 +105,26 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         return ee.Feature(None, {"t": t, "v": v})
 
     fc = ee.FeatureCollection(col.map(to_feat)).filter(ee.Filter.notNull(["v"]))
-    fit = fc.reduceColumns(ee.Reducer.linearFit(), ["t", "v"])
-    trend = float(ee.Number(fit.get("scale")).getInfo() or 0.0)  # cm/yr
+    points = fc.getInfo().get("features", [])
+    ts = np.array([(p["properties"]["t"], p["properties"]["v"]) for p in points
+                   if p["properties"].get("v") is not None], dtype=float)
+
+    trend, mean_anom = 0.0, 0.0
+    series: list[dict[str, Any]] = []
+    if ts.shape[0] >= 2:
+        trend = float(np.polyfit(ts[:, 0], ts[:, 1], 1)[0])  # cm/yr
+        # Annual means -> compact, readable series for the chart.
+        by_year: dict[int, list[float]] = {}
+        for t, v in ts:
+            by_year.setdefault(2004 + int(t), []).append(v)
+        series = [{"year": y, "anomaly_cm": round(float(np.mean(vs)), 1)}
+                  for y, vs in sorted(by_year.items())]
+        # "Current" anomaly = mean of the most recent 12 monthly solutions.
+        mean_anom = float(np.mean(ts[ts[:, 0].argsort()][-12:, 1]))
+    elif ts.shape[0] == 1:
+        mean_anom = float(ts[0, 1])
 
     latest = ee.Image(col.sort("system:time_start", False).first())
-    latest_val = ee.Number(latest.reduceRegion(
-        ee.Reducer.mean(), geom, 50000, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
-    mean_anom = float((latest_val.getInfo() or 0.0))
-
     tile_url = tiles.image_tile_url(
         latest.clip(geom),
         {"min": -20, "max": 20, "palette": ["#67000d", "#fb6a4a", "#ffffbf", "#74add1", "#313695"]})
@@ -124,13 +145,20 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         "module": "groundwater", "product": "storage", "source": "live",
         "tile_url": tile_url, "grid": None,
         "legend": [{"label": l, "color": c} for l, _, c in STRESS_CLASSES],
-        "series": [],
+        "series": series,
         "stats": {
             "mean_anomaly_cm": round(mean_anom, 1),
             "depletion_trend_cm_yr": round(trend, 2),
             "stress_class": _classify(trend),
             "recharge_proxy_mm_yr": recharge_val,
-            "dataset": "NASA GRACE/GRACE-FO MASS_GRIDS_V04",
+            "dataset": "NASA GRACE/GRACE-FO MASS_GRIDS_V04 (CSR/GFZ/JPL mean)",
+            "native_resolution": "~3° mascon (~330 km)",
+            "regional_note": (
+                "GRACE resolves total water storage at regional scale (~330 km / "
+                "~150,000 km² per mascon). Values represent the wider aquifer system "
+                "around this AOI, not a single field or well."
+            ),
+            "n_observations": int(ts.shape[0]),
             "area_km2": norm["area_km2"],
         },
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},

@@ -1204,7 +1204,7 @@ export function GroundwaterPanel({
       ) : (
         <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
           <Info size={12} className="mt-0.5 shrink-0" />
-          Yearly history shows in demo mode.
+          Not enough GRACE observations over this region for a trend.
         </p>
       )}
 
@@ -1216,11 +1216,26 @@ export function GroundwaterPanel({
         </div>
       )}
 
+      {/* honest regional-resolution framing — GRACE is inherently coarse */}
+      {stats.regional_note && (
+        <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
+          <Info size={12} className="mt-0.5 shrink-0" />
+          <span>
+            {stats.regional_note}
+            {stats.native_resolution ? ` (native ${stats.native_resolution})` : ""}
+          </span>
+        </p>
+      )}
+
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-subtle">
         <Info size={12} className="mt-0.5 shrink-0" />
         {data.source === "demo"
           ? "Demo data — the same area always returns the same trend."
-          : "Computed live from satellite gravimetry."}
+          : `Computed live from NASA GRACE/GRACE-FO satellite gravimetry${
+              typeof stats.n_observations === "number"
+                ? ` (${stats.n_observations} monthly solutions)`
+                : ""
+            }.`}
       </p>
     </div>
   );
