@@ -5,12 +5,20 @@ flood-prone pixels from the 11 AHP conditioning factors, and reports SHAP featur
 importance + cross-validated metrics.
 
   * LIVE  — features sampled from the 11 reclassified factor layers; the label is
-            the JRC Global Surface Water occurrence (>=5% = historically flooded),
-            an independent observed-flood proxy (cf. Tehrany et al., 2014).
+            the JRC Global Flood Database (``GLOBAL_FLOOD_DB/MODIS_EVENTS/V1``):
+            the count of mapped flood EVENTS per pixel (2000-2018, Tellman et al.
+            2021), i.e. observed floods, not just where surface water sits. Where
+            the event archive doesn't cover an AOI it falls back to JRC Global
+            Surface Water occurrence (>=5%) as a proxy (cf. Tehrany et al., 2014).
   * DEMO  — features sampled from deterministic factor fields; the label is the
             AHP-weighted composite thresholded. Trains a real model either way.
 
-References: Tehrany et al. (2014) J. Hydrology; Lundberg & Lee (2017) SHAP, NeurIPS.
+This is the data-driven alternative to the AHP weighted overlay: factor weights
+are learned from where floods actually occurred (validated by ROC-AUC), so no
+expert pairwise judgement is required.
+
+References: Tellman et al. (2021) Nature (Global Flood Database); Tehrany et al.
+(2014) J. Hydrology; Lundberg & Lee (2017) SHAP, NeurIPS.
 """
 from __future__ import annotations
 
@@ -122,6 +130,8 @@ def flood_risk_ml(aoi: dict[str, Any], model: str = "gbm", n_samples: int = 800)
             log.warning("ml_flood live failed, demo fallback: %s", exc)
     rng = np.random.default_rng(abs(hash(tuple(round(b, 3) for b in norm["bbox"]))) % (2**32))
     res = _train_and_explain(*_demo_training(norm["bbox"], n_samples, rng), model, "demo")
+    res["label_source"] = "AHP-weighted composite (demo proxy)"
+    res["data_driven"] = False
     res["aoi"] = {"bbox": norm["bbox"], "centroid": norm["centroid"]}
     return res
 
@@ -131,21 +141,44 @@ def _flood_risk_live(norm, model, n_samples) -> dict[str, Any]:  # pragma: no co
     geom = aoi_mod.to_ee_geometry(norm)
     factors = flood_factors.compute_factor_layers(geom)
     stack = ee.Image.cat([factors[name].rename(name) for name in FACTORS])
-    # Independent observed-flood label: JRC GSW historical occurrence >= 5%.
-    label = (ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence")
-             .gte(5).unmask(0).rename("flooded"))
-    stack = stack.addBands(label)
+
+    # Two observed-flood labels, sampled in one pass so we can pick the better one
+    # client-side without a second round-trip:
+    #   * flooded_gfd — JRC Global Flood Database: count of mapped flood EVENTS per
+    #     pixel (2000-2018). Real observed floods; the preferred label.
+    #   * flooded_gsw — JRC Global Surface Water occurrence >=5%. Surface-water
+    #     proxy; the fallback where the event archive doesn't cover the AOI.
+    gfd = (ee.ImageCollection("GLOBAL_FLOOD_DB/MODIS_EVENTS/V1")
+           .select("flooded").sum().gte(1).unmask(0).rename("flooded_gfd"))
+    gsw = (ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence")
+           .gte(5).unmask(0).rename("flooded_gsw"))
+    stack = stack.addBands(gfd).addBands(gsw)
+
     samples = stack.sample(region=geom, scale=100, numPixels=n_samples, seed=42,
                            geometries=False, tileScale=4).getInfo()
-    feats = samples.get("features", [])
-    rows, ys = [], []
-    for f in feats:
+    rows, y_gfd, y_gsw = [], [], []
+    for f in samples.get("features", []):
         p = f["properties"]
-        if all(p.get(name) is not None for name in FACTORS) and p.get("flooded") is not None:
+        if all(p.get(name) is not None for name in FACTORS):
             rows.append([float(p[name]) for name in FACTORS])
-            ys.append(int(p["flooded"]))
+            y_gfd.append(int(p.get("flooded_gfd") or 0))
+            y_gsw.append(int(p.get("flooded_gsw") or 0))
     if len(rows) < 30:
         raise ValueError("insufficient training samples from GEE")
-    res = _train_and_explain(np.array(rows, float), np.array(ys, int), model, "live")
+
+    X = np.array(rows, float)
+    # Prefer the observed-event label when it carries both classes with enough
+    # positives; else fall back to the surface-water proxy.
+    pos_gfd = sum(y_gfd)
+    if 10 <= pos_gfd < len(y_gfd):
+        y = np.array(y_gfd, int)
+        label_source = "JRC Global Flood Database — observed flood events (2000-2018)"
+    else:
+        y = np.array(y_gsw, int)
+        label_source = "JRC Global Surface Water — occurrence ≥5% (surface-water proxy)"
+
+    res = _train_and_explain(X, y, model, "live")
+    res["label_source"] = label_source
+    res["data_driven"] = True
     res["aoi"] = {"bbox": norm["bbox"], "centroid": norm["centroid"]}
     return res
