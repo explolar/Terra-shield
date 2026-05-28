@@ -130,6 +130,8 @@ def _exposure_demo(norm, hazard) -> dict[str, Any]:
 
 
 def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
+    from . import flood_factors
+
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
 
@@ -137,15 +139,11 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
         ee.Filter.eq("year", 2020)
     ).mosaic().clip(geom)
     builtup = ee.Image("ESA/WorldCover/v200/2021").select("Map").eq(50).clip(geom)
-    dem = ee.Image("USGS/SRTMGL1_003").clip(geom)
 
-    # Flood hazard footprint proxy: low-lying terrain (bottom 30% of elevation).
-    # Resolve the threshold to a Python float so the comparison casts cleanly.
-    p30 = dem.reduceRegion(
-        reducer=ee.Reducer.percentile([30]), geometry=geom, scale=300,
-        maxPixels=1e9, bestEffort=True,
-    ).values().get(0).getInfo()
-    hazard_mask = dem.lte(p30 if p30 is not None else 99999)
+    # Real hazard footprint: high flood susceptibility (AHP classes 4-5) from the
+    # same 11-factor model FloodAI uses — not a bottom-of-elevation proxy.
+    composite, _factors, _ahp = flood_factors.compute_susceptibility(geom)
+    hazard_mask = composite.gte(4)
 
     def _sum(img, scale):
         d = img.reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=scale,
