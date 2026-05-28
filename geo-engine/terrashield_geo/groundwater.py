@@ -105,7 +105,36 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         return ee.Feature(None, {"t": t, "v": v})
 
     fc = ee.FeatureCollection(col.map(to_feat)).filter(ee.Filter.notNull(["v"]))
-    points = fc.getInfo().get("features", [])
+
+    # Recharge proxy: CHIRPS annual rainfall - MODIS ET (mm/yr). Built as a
+    # null-safe ee.Number so it can be evaluated alongside the series.
+    recharge_num = None
+    try:
+        rain = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                .filterDate("2022-01-01", "2023-01-01").select("precipitation").sum())
+        et = (ee.ImageCollection("MODIS/061/MOD16A2").filterDate("2022-01-01", "2023-01-01")
+              .select("ET").sum().multiply(0.1))  # 0.1 mm scale
+        rv = rain.subtract(et).reduceRegion(
+            ee.Reducer.mean(), geom, 5000, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        recharge_num = ee.Number(ee.Algorithms.If(rv, rv, 0))
+    except Exception:  # pragma: no cover  — recharge is optional
+        recharge_num = None
+
+    # Pull the series and the recharge value concurrently (two independent
+    # round-trips). If recharge evaluation fails it must not drop the series, so
+    # fall back to a series-only fetch.
+    recharge_val = None
+    objs = {"series": fc}
+    if recharge_num is not None:
+        objs["recharge"] = recharge_num
+    try:
+        ev = gee.evaluate_parallel(objs)
+        points = ev["series"].get("features", [])
+        if "recharge" in ev:
+            recharge_val = round(float(ev["recharge"] or 0.0), 0)
+    except Exception:  # pragma: no cover  — recharge errored; series is essential
+        points = fc.getInfo().get("features", [])
+
     ts = np.array([(p["properties"]["t"], p["properties"]["v"]) for p in points
                    if p["properties"].get("v") is not None], dtype=float)
 
@@ -128,18 +157,6 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
     tile_url = tiles.image_tile_url(
         latest.clip(geom),
         {"min": -20, "max": 20, "palette": ["#67000d", "#fb6a4a", "#ffffbf", "#74add1", "#313695"]})
-
-    # Recharge proxy: CHIRPS annual rainfall - MODIS ET (mm/yr).
-    try:
-        rain = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-                .filterDate("2022-01-01", "2023-01-01").select("precipitation").sum())
-        et = (ee.ImageCollection("MODIS/061/MOD16A2").filterDate("2022-01-01", "2023-01-01")
-              .select("ET").sum().multiply(0.1))  # 0.1 mm scale
-        recharge = ee.Number(rain.subtract(et).reduceRegion(
-            ee.Reducer.mean(), geom, 5000, maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
-        recharge_val = round(float(recharge.getInfo() or 0.0), 0)
-    except Exception:
-        recharge_val = None
 
     return {
         "module": "groundwater", "product": "storage", "source": "live",
