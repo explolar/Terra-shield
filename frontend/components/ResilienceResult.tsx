@@ -122,6 +122,16 @@ export function ShelterResult({ data }: { data: ShelterResponse }) {
         Serving <b className="text-ink">{data.demand_points}</b> demand points
         with <b className="text-ink">{data.chosen.length}</b> sited shelters
         (shown as cyan markers on the map).
+        {typeof data.exposed_population === "number" && (
+          <>
+            {" "}
+            Demand weighted by{" "}
+            <b className="text-ink">
+              {data.exposed_population.toLocaleString()}
+            </b>{" "}
+            flood-exposed residents (WorldPop).
+          </>
+        )}
       </div>
 
       <MethodCaption>Optimal shelter coverage.</MethodCaption>

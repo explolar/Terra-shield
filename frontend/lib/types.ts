@@ -464,6 +464,8 @@ export interface ShelterResponse {
   demand_points: number;
   radius_km: number;
   shelters_geojson: PointFeatureCollection;
+  source?: string;
+  exposed_population?: number;
   aoi: { bbox: number[]; centroid: number[] };
 }
 

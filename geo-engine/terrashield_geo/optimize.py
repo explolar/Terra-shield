@@ -330,12 +330,97 @@ def default_flood_ahp() -> dict[str, Any]:
 
 def shelters_for_aoi(aoi: dict, p: int = 3, radius_km: float = 8.0,
                      grid_n: int = 12) -> dict[str, Any]:
-    """Derive demand (exposed population) + candidate sites from an AOI, then
-    solve the relief-shelter MCLP. Deterministic; works without GEE."""
+    """Site relief shelters (MCLP) over an AOI. Uses REAL exposed population
+    (WorldPop × flood susceptibility) when online; falls back to a deterministic
+    demand surface if GEE is unavailable."""
     from . import aoi as aoi_mod
-    from . import demo
+    from . import gee
 
     norm = aoi_mod.normalize(aoi)
+    if gee.is_live():  # production: demand from real population at flood risk
+        try:
+            return _shelters_live(norm, p, radius_km, grid_n)
+        except Exception as exc:  # pragma: no cover  — fall back to demo demand
+            import logging
+
+            logging.getLogger("terrashield.geo.optimize").warning(
+                "live shelter demand failed, demo fallback: %s", exc
+            )
+    return _shelters_demo(norm, p, radius_km, grid_n)
+
+
+def _shelters_live(norm: dict, p: int, radius_km: float,
+                   grid_n: int = 12) -> dict[str, Any]:  # pragma: no cover
+    """Demand = WorldPop population masked by moderate-to-high flood susceptibility
+    (composite ≥ 3), summed per grid cell in one batched GEE call. Candidate sites
+    are the cell centroids; the MCLP greedy then picks the p that cover the most
+    exposed population within ``radius_km``."""
+    from . import aoi as aoi_mod
+    from . import flood_factors, gee
+
+    ee = gee.get_ee()
+    bbox = norm["bbox"]
+    geom = aoi_mod.to_ee_geometry(norm)
+    min_lon, min_lat, max_lon, max_lat = bbox
+    dlon = (max_lon - min_lon) / grid_n
+    dlat = (max_lat - min_lat) / grid_n
+
+    pop = ee.ImageCollection("WorldPop/GP/100m/pop").filter(
+        ee.Filter.eq("year", 2020)
+    ).mosaic()
+    composite, _factors, _ahp = flood_factors.compute_susceptibility(geom)
+    exposed = pop.updateMask(composite.gte(3)).rename("pop")
+
+    cells, centroids = [], []
+    for i in range(grid_n):
+        for j in range(grid_n):
+            lon0 = min_lon + j * dlon
+            lat1 = max_lat - i * dlat
+            cells.append(ee.Feature(
+                ee.Geometry.Rectangle([lon0, lat1 - dlat, lon0 + dlon, lat1]),
+                {"i": i, "j": j}))
+            centroids.append((i, j, lon0 + dlon / 2, lat1 - dlat / 2))
+
+    red = exposed.reduceRegions(
+        collection=ee.FeatureCollection(cells), reducer=ee.Reducer.sum(),
+        scale=100, tileScale=4,
+    ).getInfo()
+    pop_by_ij = {(f["properties"]["i"], f["properties"]["j"]): (f["properties"].get("pop") or 0.0)
+                 for f in red["features"]}
+
+    demand, sites = [], []
+    for i, j, clon, clat in centroids:
+        w = float(pop_by_ij.get((i, j), 0.0))
+        if w > 0:
+            demand.append(DemandPoint(clon, clat, weight=round(w, 1)))
+        sites.append(CandidateSite(id=f"S{i}-{j}", lon=clon, lat=clat))
+
+    if not demand:
+        raise ValueError("no exposed population found in this AOI")
+
+    result = locate_shelters(demand, sites, p, radius_km)
+    chosen_sites = [s for s in sites if s.id in result["chosen"]]
+    result["shelters_geojson"] = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "properties": {"id": s.id, "type": "shelter"},
+             "geometry": {"type": "Point", "coordinates": [s.lon, s.lat]}}
+            for s in chosen_sites
+        ],
+    }
+    result["source"] = "live"
+    result["exposed_population"] = int(sum(d.weight for d in demand))
+    result["demand_points"] = len(demand)
+    result["candidate_sites"] = len(sites)
+    result["radius_km"] = radius_km
+    result["aoi"] = {"bbox": bbox, "centroid": norm["centroid"]}
+    return result
+
+
+def _shelters_demo(norm: dict, p: int = 3, radius_km: float = 8.0,
+                   grid_n: int = 12) -> dict[str, Any]:
+    """Deterministic demand surface (offline fallback): exposed = pop × low-elevation."""
+    from . import demo
     bbox = norm["bbox"]
     pop = demo.smooth_field(bbox, grid_n, salt="infra:pop")
     hazard = demo.smooth_field(bbox, grid_n, salt="flood:elevation")  # low elev ~ exposed
