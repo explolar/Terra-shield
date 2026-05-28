@@ -372,14 +372,82 @@ def shelters_for_aoi(aoi: dict, p: int = 3, radius_km: float = 8.0,
 
 
 def evacuation_for_aoi(aoi: dict, grid_n: int = 10) -> dict[str, Any]:
-    """Build a lattice road graph over the AOI, flag flooded edges from the
-    susceptibility surface, and route a stranded at-risk neighbourhood to the
-    nearest safe exit via Dijkstra. Deterministic; works without GEE.
+    """Flood-aware evacuation routing. Uses the REAL OSM road network (Overpass)
+    with a GEE flood penalty when online; falls back to a deterministic lattice
+    if Overpass/GEE is unavailable.
 
     Reports human-readable outputs (distance in km, segment count, whether the
     safest available route still crosses flooding) rather than the internal
     penalised path cost.
     """
+    from . import aoi as aoi_mod
+    from . import gee
+
+    if gee.is_live():  # production: route on the real road network
+        try:
+            return _evacuation_live(aoi_mod.normalize(aoi))
+        except Exception as exc:  # pragma: no cover  — fall back to the lattice
+            import logging
+
+            logging.getLogger("terrashield.geo.optimize").warning(
+                "OSM evacuation failed, lattice fallback: %s", exc
+            )
+    return _evacuation_lattice(aoi, grid_n)
+
+
+def _evacuation_live(norm: dict, flood_penalty: float = 1e6) -> dict[str, Any]:  # pragma: no cover
+    """Evacuation on the REAL OSM road network with a GEE flood penalty: edges whose
+    midpoint falls in high flood susceptibility (composite ≥ 4, AHP classes 4-5) are
+    penalised so the route avoids flooding when a dry alternative exists. Dijkstra to
+    the nearest boundary exit. Falls back to the lattice if the road graph is too thin.
+    """
+    from . import aoi as aoi_mod
+    from . import flood_factors, gee, roads
+
+    ee = gee.get_ee()
+    bbox = norm["bbox"]
+    g = roads.build_graph(roads.fetch_roads(bbox), max_edges=20000)
+    if g.number_of_edges() < 5:
+        raise ValueError("too few OSM roads in this AOI")
+
+    # Sample flood susceptibility at every edge midpoint in one batched GEE call,
+    # then penalise edges that cross high-susceptibility terrain.
+    geom = aoi_mod.to_ee_geometry(norm)
+    composite, _factors, _ahp = flood_factors.compute_susceptibility(geom)
+    edges = list(g.edges())
+    feats = [
+        ee.Feature(ee.Geometry.Point([(u[1] + v[1]) / 2, (u[0] + v[0]) / 2]), {"idx": i})
+        for i, (u, v) in enumerate(edges)
+    ]
+    sampled = composite.rename("susc").reduceRegions(
+        collection=ee.FeatureCollection(feats), reducer=ee.Reducer.first(),
+        scale=90, tileScale=4,
+    ).getInfo()
+    susc_by_idx = {f["properties"]["idx"]: f["properties"].get("susc")
+                   for f in sampled["features"]}
+
+    n_flooded = 0
+    for i, (u, v) in enumerate(edges):
+        susc = susc_by_idx.get(i)
+        if susc is not None and susc >= 4:
+            g[u][v]["weight"] += flood_penalty
+            n_flooded += 1
+
+    route = roads.route_to_exit(g, bbox, flood_penalty=flood_penalty)
+    route["source"] = "live"
+    route["aoi"] = {"bbox": bbox, "centroid": norm["centroid"]}
+    route["stats"] = {
+        "road_segments": g.number_of_edges(),
+        "flooded_segments": n_flooded,
+        "method": "Dijkstra on OSM roads; edges in high flood susceptibility penalised",
+    }
+    return route
+
+
+def _evacuation_lattice(aoi: dict, grid_n: int = 10) -> dict[str, Any]:
+    """Synthetic-lattice evacuation fallback (deterministic; works without GEE).
+    Builds a lattice road graph, flags flooded edges from the susceptibility
+    surface, and routes the most at-risk core node to the nearest safe exit."""
     from . import aoi as aoi_mod
     from . import demo
 

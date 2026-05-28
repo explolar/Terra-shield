@@ -102,3 +102,72 @@ def road_criticality_osm(bbox, max_features: int = 1500) -> dict:
                          "coordinates": [[u[1], u[0]], [v[1], v[0]]]},
         })
     return {"features": features, "n_segments": g.number_of_edges(), "n_critical": n_critical}
+
+
+def route_to_exit(g, bbox, flood_penalty: float = 1e6) -> dict:
+    """Evacuation route on a prebuilt road graph: shortest km-weighted Dijkstra path
+    from the AOI-centre node to the nearest boundary 'exit' node. Edges already
+    bumped by ``flood_penalty`` (flooded) are avoided when a dry route exists.
+
+    OSM road graphs are fragmented (ways only connect where they share an exact
+    node), so we route within the largest connected component — that guarantees a
+    path between the chosen source and exits exists."""
+    import networkx as nx
+
+    if g.number_of_nodes() < 6:
+        raise ValueError("too few OSM road nodes in this AOI")
+    g = g.subgraph(max(nx.connected_components(g), key=len))
+    if g.number_of_nodes() < 6:
+        raise ValueError("largest road component too small in this AOI")
+    min_lon, min_lat, max_lon, max_lat = bbox
+    clat, clon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
+    nodes = list(g.nodes())
+
+    def nearest(la, lo):
+        return min(nodes, key=lambda n: haversine_km(n, (la, lo)))
+
+    source = nearest(clat, clon)
+    exits = {nearest(min_lat, clon), nearest(max_lat, clon),
+             nearest(clat, min_lon), nearest(clat, max_lon)} - {source}
+    best = None
+    for ex in exits:
+        try:
+            length, path = nx.single_source_dijkstra(g, source, ex, weight="weight")
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            continue
+        if best is None or length < best[0]:
+            best = (length, path)
+    if best is None:
+        return {"reachable": False, "warning": "no route to a boundary exit",
+                "route_km": 0.0, "segments": 0, "crosses_flood": False,
+                "uses_flooded_edge": False,
+                "route_geojson": {"type": "FeatureCollection", "features": []}}
+
+    length, path = best
+    real_km = round(sum(haversine_km(path[i], path[i + 1]) for i in range(len(path) - 1)), 2)
+    crosses = length >= flood_penalty
+    return {
+        "reachable": True,
+        "route_km": real_km,
+        "segments": len(path) - 1,
+        "crosses_flood": crosses,
+        "uses_flooded_edge": crosses,
+        "warning": "safest available route still crosses flooding" if crosses else None,
+        "route_geojson": {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {"type": "evacuation_route", "route_km": real_km,
+                               "crosses_flood": crosses},
+                "geometry": {"type": "LineString",
+                             "coordinates": [[n[1], n[0]] for n in path]},
+            }],
+        },
+    }
+
+
+def evacuation_osm(bbox) -> dict:
+    """Build the real OSM road graph and route to the nearest exit (no flood penalty).
+    Uses a higher edge cap than criticality — Dijkstra is cheap and a fuller graph
+    keeps the network connected so a route can be found."""
+    return route_to_exit(build_graph(fetch_roads(bbox), max_edges=20000), bbox)
