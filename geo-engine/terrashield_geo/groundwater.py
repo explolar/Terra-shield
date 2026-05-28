@@ -57,7 +57,7 @@ def _groundwater_demo(norm) -> dict[str, Any]:
     grid = demo.field_to_grid(bbox, anomaly.round(1), value_key="anomaly_cm")
     rng = np.random.default_rng(abs(hash(tuple(round(b, 3) for b in bbox))) % (2**32))
     trend = float(np.clip(rng.normal(-0.7, 0.6), -2.5, 1.0))  # most regions depleting
-    years = list(range(2004, 2024))
+    years = list(range(2004, 2025))
     base = float(anomaly.mean())
     series = [{"year": y, "anomaly_cm": round(base + trend * (y - 2004) + rng.normal(0, 1.2), 1)}
               for y in years]
@@ -88,11 +88,12 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
 
     ee = gee.get_ee()
     geom = aoi_mod.to_ee_geometry(norm)
-    # GRACE V04 ships three solutions (CSR/GFZ/JPL); the recommended estimate is
-    # their ensemble mean.
-    _bands = ["lwe_thickness_csr", "lwe_thickness_gfz", "lwe_thickness_jpl"]
-    col = ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/LAND").map(
-        lambda img: img.select(_bands).reduce(ee.Reducer.mean()).rename("lwe")
+    # Continuous GRACE + GRACE-FO record (2002-present) via the JPL mascon CRI
+    # solution (single lwe_thickness band, cm). The older MASS_GRIDS_V04/LAND
+    # product only runs through Jan 2017, so the series stopped at the GRACE
+    # mission end; the mascon spans the GRACE/GRACE-FO gap to recent years.
+    col = ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/MASCON_CRI").map(
+        lambda img: img.select("lwe_thickness").rename("lwe")
             .copyProperties(img, ["system:time_start"])
     )
 
@@ -168,7 +169,7 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
             "depletion_trend_cm_yr": round(trend, 2),
             "stress_class": _classify(trend),
             "recharge_proxy_mm_yr": recharge_val,
-            "dataset": "NASA GRACE/GRACE-FO MASS_GRIDS_V04 (CSR/GFZ/JPL mean)",
+            "dataset": "NASA GRACE/GRACE-FO Mascon CRI (V04 RL06.3, to 2024)",
             "native_resolution": "~3° mascon (~330 km)",
             "regional_note": (
                 "GRACE resolves total water storage at regional scale (~330 km / "
