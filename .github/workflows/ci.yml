@@ -77,9 +77,7 @@ jobs:
         run: echo "AR=$REGION-docker.pkg.dev/$RUN_PROJECT/terrashield" >> "$GITHUB_ENV"
 
       - name: Build backend image
-        run: |
-          gcloud builds submit --config infra/cloudbuild.backend.yaml --suppress-logs \
-            --substitutions=_IMAGE=$AR/backend .
+        run: bash infra/cloudbuild-wait.sh infra/cloudbuild.backend.yaml "_IMAGE=$AR/backend"
 
       - name: Deploy backend
         run: |
@@ -104,9 +102,7 @@ jobs:
             --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
 
       - name: Build frontend image (bakes backend URL at build time)
-        run: |
-          gcloud builds submit --config infra/cloudbuild.frontend.yaml --suppress-logs \
-            --substitutions=_IMAGE=$AR/frontend,_API_BASE=$BACKEND_URL/api/v1 .
+        run: bash infra/cloudbuild-wait.sh infra/cloudbuild.frontend.yaml "_IMAGE=$AR/frontend,_API_BASE=$BACKEND_URL/api/v1"
 
       - name: Deploy frontend
         run: |
