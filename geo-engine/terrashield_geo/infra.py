@@ -173,19 +173,25 @@ def _exposure_live(norm, hazard) -> dict[str, Any]:  # pragma: no cover
     composite, _factors, _ahp = flood_factors.compute_susceptibility(geom)
     hazard_mask = composite.gte(4)
 
-    def _sum(img, scale):
-        d = img.reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=scale,
-                             maxPixels=1e9, bestEffort=True, tileScale=4)
-        v = d.values().get(0)
-        return ee.Number(ee.Algorithms.If(v, v, 0)).getInfo()
+    def _sum_num(img, scale):
+        v = img.reduceRegion(reducer=ee.Reducer.sum(), geometry=geom, scale=scale,
+                             maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        return ee.Number(ee.Algorithms.If(v, v, 0))
 
     # Coarser scales for much faster reductions (population/built-up totals stay
-    # representative at AOI scale).
+    # representative at AOI scale). All four reductions are pulled in ONE getInfo
+    # round-trip via an ee.Dictionary, instead of four sequential calls.
     built_km2_img = builtup.multiply(ee.Image.pixelArea()).divide(1e6)
-    total_pop = _sum(pop, 300)
-    exposed_pop = _sum(pop.updateMask(hazard_mask), 300)
-    built_total = _sum(built_km2_img, 100)
-    built_exposed = _sum(built_km2_img.updateMask(hazard_mask), 100)
+    agg = ee.Dictionary({
+        "total_pop": _sum_num(pop, 300),
+        "exposed_pop": _sum_num(pop.updateMask(hazard_mask), 300),
+        "built_total": _sum_num(built_km2_img, 100),
+        "built_exposed": _sum_num(built_km2_img.updateMask(hazard_mask), 100),
+    }).getInfo()
+    total_pop = agg["total_pop"]
+    exposed_pop = agg["exposed_pop"]
+    built_total = agg["built_total"]
+    built_exposed = agg["built_exposed"]
 
     return {
         "module": "infra",

@@ -113,3 +113,29 @@ def status() -> dict:
         "error": _state.error,
         "ee_installed": get_ee() is not None,
     }
+
+
+def evaluate_parallel(objs: dict[str, Any], max_workers: int = 6) -> dict[str, Any]:  # pragma: no cover
+    """Evaluate several Earth Engine objects concurrently via ``getInfo``.
+
+    Each ``getInfo`` is an independent, blocking HTTPS round-trip to Google's
+    servers, so a small thread pool collapses N sequential waits into roughly one.
+    Used where the per-call computations are heavy enough that batching them into
+    a single request would risk the Earth Engine compute/timeout limit (e.g.
+    multi-year SAR reductions). Returns a dict mapping the same keys to results.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    items = list(objs.items())
+    if not items:
+        return {}
+
+    def _eval(kv):
+        key, obj = kv
+        return key, obj.getInfo()
+
+    out: dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(items))) as ex:
+        for key, value in ex.map(_eval, items):
+            out[key] = value
+    return out

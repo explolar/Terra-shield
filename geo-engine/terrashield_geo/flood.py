@@ -160,19 +160,24 @@ def _susceptibility_live(norm, w, rain_mult, scenario) -> dict[str, Any]:  # pra
         for name, img in factors.items()
     }
 
-    # Batched reductions at a coarse scale (was 3 round-trips, now 2). One mean
-    # call covers the mean class + the AoA data-support share (keys = band names);
-    # one sum call covers the high-risk (classes >=4) area.
+    # All reductions in ONE getInfo round-trip (was 3, then 2, now 1). A mean
+    # reduce covers the mean class + the AoA data-support share; a sum reduce
+    # covers the high-risk (classes >=4) area; both are wrapped in an ee.Dictionary.
     px = ee.Image.pixelArea()
-    mm = (composite.rename("mean").addBands(composite.mask().rename("appl"))
-          .reduceRegion(ee.Reducer.mean(), geom, 300,
-                        maxPixels=1e9, bestEffort=True, tileScale=4).getInfo())
-    mean_class = round(mm.get("mean") or 0, 2)
-    applicable_pct = round((mm.get("appl") or 0) * 100, 1)
+    mean_dict = (composite.rename("mean").addBands(composite.mask().rename("appl"))
+                 .reduceRegion(ee.Reducer.mean(), geom, 300,
+                               maxPixels=1e9, bestEffort=True, tileScale=4))
     high = composite.gte(4).multiply(px).reduceRegion(
         ee.Reducer.sum(), geom, 300, maxPixels=1e9, bestEffort=True, tileScale=4,
     ).values().get(0)
-    high_km2 = round((ee.Number(ee.Algorithms.If(high, high, 0)).getInfo() or 0) / 1e6, 2)
+    out = ee.Dictionary({
+        "mean": mean_dict.get("mean"),
+        "appl": mean_dict.get("appl"),
+        "high_area": ee.Number(ee.Algorithms.If(high, high, 0)),
+    }).getInfo()
+    mean_class = round(out.get("mean") or 0, 2)
+    applicable_pct = round((out.get("appl") or 0) * 100, 1)
+    high_km2 = round((out.get("high_area") or 0) / 1e6, 2)
 
     return {
         "module": "flood",
@@ -331,20 +336,28 @@ def _sar_extent_live(norm, ps, pe, qs, qe) -> dict[str, Any]:  # pragma: no cove
                 .where(flooded.And(dem.gt(p10).And(dem.lte(p50))), 2)
                 .where(flooded.And(dem.gt(p50)), 1).updateMask(flooded).rename("severity"))
 
-    def _sum(img, scale):
+    def _area_num(img, scale):
         v = img.multiply(px).reduceRegion(ee.Reducer.sum(), geom, scale,
                                           maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
-        return float(ee.Number(ee.Algorithms.If(v, v, 0)).getInfo() or 0)
+        return ee.Number(ee.Algorithms.If(v, v, 0))
 
-    flooded_km2 = round(_sum(flooded, 30) / 1e6, 2)
     lulc = ee.Image("ESA/WorldCover/v200/2021").select("Map")
-    crop_ha = round(_sum(flooded.updateMask(lulc.eq(40)), 20) / 1e4, 1)   # cropland
-    built_ha = round(_sum(flooded.updateMask(lulc.eq(50)), 20) / 1e4, 1)  # built-up
     pop = ee.ImageCollection("WorldPop/GP/100m/pop").filter(
         ee.Filter.eq("year", 2020)).mosaic().clip(geom)
     pv = pop.updateMask(flooded).reduceRegion(ee.Reducer.sum(), geom, 100,
                                               maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
-    pop_exposed = int(ee.Number(ee.Algorithms.If(pv, pv, 0)).getInfo() or 0)
+    # Flooded area + cropland + built-up + exposed population in ONE getInfo
+    # round-trip (was four sequential calls).
+    agg = ee.Dictionary({
+        "flooded_m2": _area_num(flooded, 30),
+        "crop_m2": _area_num(flooded.updateMask(lulc.eq(40)), 20),    # cropland
+        "built_m2": _area_num(flooded.updateMask(lulc.eq(50)), 20),   # built-up
+        "pop": ee.Number(ee.Algorithms.If(pv, pv, 0)),
+    }).getInfo()
+    flooded_km2 = round(agg["flooded_m2"] / 1e6, 2)
+    crop_ha = round(agg["crop_m2"] / 1e4, 1)
+    built_ha = round(agg["built_m2"] / 1e4, 1)
+    pop_exposed = int(agg["pop"])
     crop_price_per_ha = 1200.0  # USD/ha default (configurable)
 
     return {
@@ -424,7 +437,10 @@ def _multiyear_live(norm, years, monsoon) -> dict[str, Any]:  # pragma: no cover
                 .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
                 .select("VV").median().focalMedian(30, "circle", "meters").clip(geom))
 
-    series = []
+    # Build a per-year flooded-area ee.Number, then evaluate all years
+    # concurrently — collapses N sequential SAR reductions into ~one wall-clock
+    # wait while keeping each request small (safer than one giant batched call).
+    per_year = {}
     for y in years:
         pre = s1(f"{y}-01-01", f"{y}-03-31")
         post = s1(f"{y}-{monsoon[0]}", f"{y}-{monsoon[1]}")
@@ -433,8 +449,11 @@ def _multiyear_live(norm, years, monsoon) -> dict[str, Any]:  # pragma: no cover
         flooded = flooded.updateMask(flooded.connectedPixelCount(200, False).gte(56))
         v = flooded.multiply(px).reduceRegion(ee.Reducer.sum(), geom, 50,
                                               maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
-        km2 = round((ee.Number(ee.Algorithms.If(v, v, 0)).getInfo() or 0) / 1e6, 2)
-        series.append({"year": y, "flooded_km2": km2})
+        per_year[str(y)] = ee.Number(ee.Algorithms.If(v, v, 0))
+
+    evaluated = gee.evaluate_parallel(per_year)
+    series = [{"year": y, "flooded_km2": round((evaluated.get(str(y)) or 0) / 1e6, 2)}
+              for y in years]
     return _multiyear_result(norm, series, "live")
 
 
