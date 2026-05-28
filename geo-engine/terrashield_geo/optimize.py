@@ -266,8 +266,9 @@ def _reconstruct(prev: dict[str, str], source: str, target: str) -> list[str]:
 @dataclass
 class Intervention:
     id: str
-    cost: float          # currency units
-    risk_reduction: float  # expected reduction (e.g. EAD avoided)
+    cost: float            # currency units
+    risk_reduction: float  # abstract reduction value used by the offline knapsack
+    effectiveness: float = 0.0  # share (0-1) of exposed population this protects
 
 
 def mitigation_plan(
@@ -610,10 +611,46 @@ def _evacuation_lattice(aoi: dict, grid_n: int = 10) -> dict[str, Any]:
 
 
 DEFAULT_INTERVENTIONS = [
-    Intervention("levee_upgrade", cost=120.0, risk_reduction=45.0),
-    Intervention("drainage_expansion", cost=80.0, risk_reduction=30.0),
-    Intervention("early_warning_network", cost=25.0, risk_reduction=22.0),
-    Intervention("wetland_restoration", cost=40.0, risk_reduction=18.0),
-    Intervention("road_elevation", cost=95.0, risk_reduction=28.0),
-    Intervention("retention_ponds", cost=55.0, risk_reduction=20.0),
+    Intervention("levee_upgrade", cost=120.0, risk_reduction=45.0, effectiveness=0.35),
+    Intervention("drainage_expansion", cost=80.0, risk_reduction=30.0, effectiveness=0.22),
+    Intervention("early_warning_network", cost=25.0, risk_reduction=22.0, effectiveness=0.18),
+    Intervention("wetland_restoration", cost=40.0, risk_reduction=18.0, effectiveness=0.12),
+    Intervention("road_elevation", cost=95.0, risk_reduction=28.0, effectiveness=0.20),
+    Intervention("retention_ponds", cost=55.0, risk_reduction=20.0, effectiveness=0.15),
 ]
+
+
+def mitigation_for_aoi(aoi: dict, budget: float,
+                       interventions: list[Intervention] | None = None) -> dict[str, Any]:
+    """Budget-constrained mitigation grounded in the AOI's REAL flood-exposed
+    population. Each intervention protects ``effectiveness`` × exposed_population
+    people; the 0/1 knapsack picks the subset maximising protected population within
+    ``budget``. Falls back to the abstract risk-reduction index when exposure can't
+    be computed (offline) or interventions carry no effectiveness fraction."""
+    from . import infra
+
+    items = interventions or DEFAULT_INTERVENTIONS
+    exposed, source = 0, "demo"
+    try:
+        exp = infra.exposure(aoi, "flood")
+        exposed = int(exp.get("stats", {}).get("population_exposed", 0) or 0)
+        source = exp.get("source", "demo")
+    except Exception:  # pragma: no cover
+        pass
+
+    if exposed > 0 and all(getattr(it, "effectiveness", 0) > 0 for it in items):
+        scaled = [Intervention(it.id, it.cost,
+                               risk_reduction=round(it.effectiveness * exposed, 1),
+                               effectiveness=it.effectiveness)
+                  for it in items]
+        plan = mitigation_plan(scaled, budget)
+        # Protection is not additively independent — cap the headline at the
+        # exposed population so we never claim to protect more people than exist.
+        plan["total_risk_reduction"] = min(plan["total_risk_reduction"], float(exposed))
+        plan["units"] = "people protected (flood-exposed)"
+        plan["exposed_population"] = exposed
+    else:
+        plan = mitigation_plan(items, budget)
+        plan["units"] = "relative risk-reduction index"
+    plan["source"] = source
+    return plan

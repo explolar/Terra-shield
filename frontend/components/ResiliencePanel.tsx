@@ -86,7 +86,7 @@ export function ResiliencePanel({
         setEvacuation(res);
         onRoute(res.route_geojson ?? null);
       } else if (state.tool === "mitigation") {
-        const res = await optimizeMitigation({ budget: state.budget });
+        const res = await optimizeMitigation({ budget: state.budget, aoi });
         setMitigation(res);
       } else if (state.tool === "ahp") {
         const res = await getAhpDefault();

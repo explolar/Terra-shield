@@ -485,6 +485,7 @@ export interface EvacuationResponse {
 
 export interface MitigationRequest {
   budget: number;
+  aoi?: AOI;
 }
 
 export interface MitigationResponse {
@@ -493,6 +494,9 @@ export interface MitigationResponse {
   total_risk_reduction: number;
   budget: number;
   budget_used_pct: number;
+  units?: string;
+  exposed_population?: number;
+  source?: string;
 }
 
 export interface AhpResponse {

@@ -198,11 +198,20 @@ export function MitigationResult({ data }: { data: MitigationResponse }) {
       <ResultHeader icon={Wallet} title="Mitigation plan" />
 
       <div className="rounded-xl border border-line bg-surface-subtle p-4">
-        <div className="text-xs text-ink-subtle">Total risk reduction</div>
+        <div className="text-xs text-ink-subtle">
+          {data.units === "people protected (flood-exposed)"
+            ? "People protected"
+            : "Total risk reduction"}
+        </div>
         <div className="mt-1 flex items-baseline gap-2">
           <span className="gradient-text text-3xl font-bold">
-            {data.total_risk_reduction}
+            {Math.round(data.total_risk_reduction).toLocaleString()}
           </span>
+          {typeof data.exposed_population === "number" && (
+            <span className="ml-auto text-xs text-ink-subtle">
+              of {data.exposed_population.toLocaleString()} exposed
+            </span>
+          )}
         </div>
       </div>
 

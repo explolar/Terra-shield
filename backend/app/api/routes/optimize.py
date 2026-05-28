@@ -73,7 +73,16 @@ def evacuation(req: EvacuationRequest) -> dict:
 @router.post("/mitigation")
 def mitigation(req: MitigationRequest) -> dict:
     if req.interventions:
-        items = [optimize.Intervention(i.id, i.cost, i.risk_reduction) for i in req.interventions]
+        items = [optimize.Intervention(i.id, i.cost, i.risk_reduction, i.effectiveness)
+                 for i in req.interventions]
     else:
         items = optimize.DEFAULT_INTERVENTIONS
+    # With an AOI, ground risk-reduction in the real flood-exposed population;
+    # otherwise solve the abstract budget-constrained knapsack.
+    if req.aoi is not None:
+        payload = {"aoi": req.aoi.to_engine(), "budget": req.budget, "n": len(items)}
+        return cached(
+            "optimize.mitigation", payload,
+            lambda: optimize.mitigation_for_aoi(req.aoi.to_engine(), req.budget, items),
+        )
     return optimize.mitigation_plan(items, req.budget)

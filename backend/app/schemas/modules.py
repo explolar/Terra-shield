@@ -156,8 +156,10 @@ class InterventionModel(BaseModel):
     id: str
     cost: float = Field(..., gt=0)
     risk_reduction: float = Field(..., ge=0)
+    effectiveness: float = Field(default=0.0, ge=0, le=1)
 
 
 class MitigationRequest(BaseModel):
     budget: float = Field(..., gt=0)
+    aoi: AOI | None = None
     interventions: list[InterventionModel] | None = None
