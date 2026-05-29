@@ -165,6 +165,33 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
     elif ts.shape[0] == 1:
         mean_anom = float(ts[0, 1])
 
+    # Isolate GROUNDWATER from total water storage by subtracting the GLDAS
+    # soil-moisture + snow + canopy storage trend. Trends are additive:
+    # trend(groundwater) ≈ trend(TWS) − trend(surface+soil storage) (Rodell 2009;
+    # Long 2016). Two endpoint windows keep it cheap; isolated so a GLDAS failure
+    # just omits the groundwater-specific estimate and the TWS trend still stands.
+    gw_trend = None
+    try:
+        gldas = ee.ImageCollection("NASA/GLDAS/V021/NOAH/G025/T3H")
+        _bands_gldas = ["SoilMoi0_10cm_inst", "SoilMoi10_40cm_inst",
+                        "SoilMoi40_100cm_inst", "SoilMoi100_200cm_inst",
+                        "SWE_inst", "CanopInt_inst"]
+
+        def _storage_mm(y0, y1):
+            img = gldas.filterDate(f"{y0}-01-01", f"{y1}-01-01").select(_bands_gldas).mean()
+            tot = img.reduce(ee.Reducer.sum())  # kg/m² == mm of water
+            return ee.Number(tot.reduceRegion(ee.Reducer.mean(), geom, 27830,
+                             maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+
+        ev2 = gee.evaluate_parallel({"early": _storage_mm(2004, 2006),
+                                     "late": _storage_mm(2021, 2023)})
+        early, late = ev2.get("early"), ev2.get("late")
+        if early is not None and late is not None:
+            gldas_trend = (float(late) - float(early)) / 10.0 / (2022.0 - 2005.0)  # cm/yr
+            gw_trend = round(trend - gldas_trend, 2)
+    except Exception:  # pragma: no cover  — GLDAS optional; keep the TWS trend
+        gw_trend = None
+
     latest = ee.Image(col.sort("system:time_start", False).first())
     tile_url = tiles.image_tile_url(
         latest.select("lwe").clip(geom),
@@ -178,8 +205,9 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         "stats": {
             "mean_anomaly_cm": round(mean_anom, 1),
             "uncertainty_cm": uncertainty_cm,        # mean 1-sigma mascon error
-            "depletion_trend_cm_yr": round(trend, 2),
-            "stress_class": _classify(trend),
+            "depletion_trend_cm_yr": round(trend, 2),  # total water storage
+            "groundwater_trend_cm_yr": gw_trend,       # TWS minus GLDAS soil/snow
+            "stress_class": _classify(gw_trend if gw_trend is not None else trend),
             "recharge_proxy_mm_yr": recharge_val,
             "dataset": "NASA GRACE/GRACE-FO Mascon CRI (V04 RL06.3, to 2024)",
             "native_resolution": "~3° mascon (~330 km)",
@@ -189,9 +217,12 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
                 "around this AOI, not a single field or well."
             ),
             "storage_note": (
+                "GRACE measures TOTAL terrestrial water storage. The groundwater "
+                "trend isolates the aquifer by removing GLDAS soil-moisture/snow/"
+                "canopy storage (Rodell 2009; Long 2016)."
+                if gw_trend is not None else
                 "This is TOTAL terrestrial water storage (soil moisture + snow + "
-                "surface water + groundwater). Isolating groundwater requires "
-                "removing soil-moisture/snow (e.g. GLDAS) — a planned refinement."
+                "surface water + groundwater); GLDAS correction was unavailable."
             ),
             "n_observations": int(ts.shape[0]),
             "area_km2": norm["area_km2"],

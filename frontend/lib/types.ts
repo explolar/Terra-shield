@@ -414,6 +414,7 @@ export interface GroundwaterSeriesPoint {
 export interface GroundwaterStats {
   mean_anomaly_cm: number;
   depletion_trend_cm_yr: number;
+  groundwater_trend_cm_yr?: number | null;
   stress_class: GroundwaterStressClass | string;
   recharge_proxy_mm_yr: number | null;
   area_km2: number;

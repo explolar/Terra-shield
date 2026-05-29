@@ -1122,7 +1122,11 @@ export function GroundwaterPanel({
   if (!data) return null;
 
   const { stats, series, legend } = data;
-  const trend = stats.depletion_trend_cm_yr;
+  // Prefer the GLDAS-isolated groundwater trend when available, else total storage.
+  const isGw = typeof stats.groundwater_trend_cm_yr === "number";
+  const trend = isGw
+    ? (stats.groundwater_trend_cm_yr as number)
+    : stats.depletion_trend_cm_yr;
   const trendUp = trend >= 0;
   const recharge = stats.recharge_proxy_mm_yr;
   const hasSeries = series.length > 0;
@@ -1163,7 +1167,7 @@ export function GroundwaterPanel({
         <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
           <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
             {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{" "}
-            Depletion trend
+            {isGw ? "Groundwater trend" : "Storage trend"}
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
             <span
