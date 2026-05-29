@@ -1346,6 +1346,15 @@ export function ResultPanel({
           <div className="mt-1 text-xs text-ink-subtle">
             {layer.baseline} → {layer.projected} {layer.unit} vs baseline
           </div>
+          {typeof layer.extreme_precip_change_pct === "number" && (
+            <div className="mt-1 text-xs text-ink-subtle">
+              Heavy-rain extremes (95th pct):{" "}
+              <span className="font-semibold text-rose-600">
+                {layer.extreme_precip_change_pct >= 0 ? "+" : ""}
+                {layer.extreme_precip_change_pct}%
+              </span>
+            </div>
+          )}
         </div>
       )}
 

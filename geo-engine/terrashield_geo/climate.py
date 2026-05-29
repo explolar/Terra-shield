@@ -23,6 +23,10 @@ VARIABLES = {
 HORIZONS = {"2030s": (2030, 2039), "2050s": (2050, 2059), "2080s": (2080, 2089)}
 BASELINE = (1995, 2014)
 
+# Small curated NEX-GDDP-CMIP6 ensemble (all present in the dataset) — averaged
+# instead of a single model so the projection isn't hostage to one GCM's bias.
+ENSEMBLE_MODELS = ["ACCESS-CM2", "MPI-ESM1-2-HR", "EC-Earth3", "MRI-ESM2-0", "GFDL-ESM4"]
+
 # Rough warming/wetting signal strength per scenario (demo realism).
 _SIGNAL = {
     "ssp245": {"pr": 0.08, "tas": 1.8, "tasmax": 2.0},
@@ -129,12 +133,18 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     meta = VARIABLES[variable]
     h0, h1 = HORIZONS[horizon]
 
-    # NASA/GDDP-CMIP6 is daily across ~35 models; a 20-year ensemble mean times out
-    # a synchronous request. Use a single representative model and 10-year windows
-    # (baseline tail vs. the horizon decade) with tileScale to keep it responsive.
-    rep_model = "ACCESS-CM2" if model == "ensemble" else model
+    # NASA/GDDP-CMIP6 is daily across ~35 models. Averaging ALL of them over 20 yr
+    # times out a synchronous request, so use a small curated multi-model ensemble
+    # over 10-year windows — more robust than a single model (Mishra 2021), still
+    # responsive. period_mean's .mean() averages across both models and days.
     base0, base1 = 2005, 2014  # representative recent-baseline decade
-    coll = ee.ImageCollection("NASA/GDDP-CMIP6").filter(ee.Filter.eq("model", rep_model))
+    src = ee.ImageCollection("NASA/GDDP-CMIP6")
+    if model == "ensemble":
+        coll = src.filter(ee.Filter.inList("model", ENSEMBLE_MODELS))
+        model_label = f"{len(ENSEMBLE_MODELS)}-model ensemble"
+    else:
+        coll = src.filter(ee.Filter.eq("model", model))
+        model_label = model
 
     # NOTE: intentionally NOT clipped — the coarse means feed the change factor,
     # which is resampled onto the fine baseline; clipping to a sub-cell AOI would
@@ -195,6 +205,29 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
     # The ~1 km projected field, bilinear-smoothed and bounded to the AOI.
     tile_url = tiles.image_tile_url(proj_fine.clip(geom.buffer(2000)), vis)
 
+    # QDM-style extreme diagnostic (precip only): change in the 95th percentile of
+    # daily rainfall — heavy precip intensifies faster than the mean (Clausius-
+    # Clapeyron). Single model + own getInfo, isolated so it can't break the map.
+    extreme_pct = None
+    if variable == "pr":
+        try:
+            em = ENSEMBLE_MODELS[0]
+
+            def _p95(scen, y0, y1):
+                d = (src.filter(ee.Filter.eq("model", em))
+                     .filter(ee.Filter.eq("scenario", scen))
+                     .filter(ee.Filter.calendarRange(y0, y1, "year"))
+                     .select("pr").reduce(ee.Reducer.percentile([95])).multiply(86400))  # mm/day
+                return ee.Number(d.reduceRegion(ee.Reducer.mean(), geom, 27830,
+                                 maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+
+            ex = ee.Dictionary({"b": _p95("historical", base0, base1),
+                                "f": _p95(scenario, h0, h1)}).getInfo()
+            if ex.get("b"):
+                extreme_pct = round((ex["f"] - ex["b"]) / ex["b"] * 100, 1)
+        except Exception:  # pragma: no cover  — diagnostic is optional
+            extreme_pct = None
+
     # Trajectory for the result/chat curve: interpolate between the two real
     # decade-mean endpoints (baseline -> horizon). A trend line, not per-year obs.
     ts_years = list(range((base0 + base1) // 2, h1 + 1))
@@ -213,18 +246,19 @@ def _projection_live(norm, scenario, variable, horizon, model) -> dict[str, Any]
         "variable_label": meta["label"],
         "unit": meta["unit"],
         "horizon": horizon,
-        "model": rep_model + (" (representative)" if model == "ensemble" else ""),
+        "model": model_label,
         "baseline": round(baseline_val, 2),
         "projected": round(projected_val, 2),
         "delta": round(delta, 2),
         "pct_change": round(delta / max(abs(baseline_val), 1e-6) * 100, 1),
+        "extreme_precip_change_pct": extreme_pct,  # Δ in daily-rainfall 95th pct
         "baseline_period": f"{base0}-{base1}",
         "timeseries": timeseries,
         "tile_url": tile_url,
         "grid": None,
         "legend": tiles.build_legend(meta["ramp"], ["Low", "", "Mid", "", "High"]),
         "downscaled": True,
-        "downscale_method": "change-factor (delta) downscaling onto WorldClim ~1 km",
+        "downscale_method": "multi-model ensemble change-factor downscaling onto WorldClim ~1 km",
         "baseline_source": "WorldClim V1 observed climatology (~1 km)",
         "native_resolution": "~1 km (from 0.25° CMIP6 NEX-GDDP)",
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},

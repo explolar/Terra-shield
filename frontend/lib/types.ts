@@ -76,6 +76,7 @@ export interface LayerResponse {
   projected?: number;
   delta?: number;
   pct_change?: number;
+  extreme_precip_change_pct?: number | null;
   timeseries?: TimeseriesPoint[];
   // climate: present when the projection map is statistically downscaled
   downscaled?: boolean;
