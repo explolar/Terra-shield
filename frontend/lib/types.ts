@@ -419,6 +419,8 @@ export interface GroundwaterStats {
   dataset?: string;
   native_resolution?: string;
   regional_note?: string;
+  storage_note?: string;
+  uncertainty_cm?: number | null;
   n_observations?: number;
 }
 

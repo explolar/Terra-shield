@@ -1153,6 +1153,11 @@ export function GroundwaterPanel({
               {stats.mean_anomaly_cm}
             </span>
             <span className="text-[11px] text-ink-muted">cm</span>
+            {typeof stats.uncertainty_cm === "number" && stats.uncertainty_cm > 0 && (
+              <span className="ml-auto text-[11px] text-ink-subtle">
+                ±{stats.uncertainty_cm}
+              </span>
+            )}
           </div>
         </div>
         <div className="rounded-xl border border-line bg-surface-subtle p-3.5">
@@ -1224,6 +1229,14 @@ export function GroundwaterPanel({
             {stats.regional_note}
             {stats.native_resolution ? ` (native ${stats.native_resolution})` : ""}
           </span>
+        </p>
+      )}
+
+      {/* honest scope: total water storage, not groundwater alone */}
+      {stats.storage_note && (
+        <p className="note-box flex items-start gap-1.5 text-[11px] leading-relaxed">
+          <Info size={12} className="mt-0.5 shrink-0" />
+          <span>{stats.storage_note}</span>
         </p>
       )}
 
@@ -1344,6 +1357,8 @@ export function ResultPanel({
             Map {layer.native_resolution ?? "downscaled"} via{" "}
             {layer.downscale_method ?? "change-factor downscaling"}
             {layer.baseline_source ? `, baseline ${layer.baseline_source}` : ""}.
+            Assumes a stationary spatial pattern; extremes are conservative
+            (the change-factor method underestimates the tails).
           </span>
         </p>
       )}

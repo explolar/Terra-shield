@@ -77,6 +77,10 @@ def _groundwater_demo(norm) -> dict[str, Any]:
                 "~150,000 km² per mascon). Values represent the wider aquifer system "
                 "around this AOI, not a single field or well."
             ),
+            "storage_note": (
+                "This is TOTAL terrestrial water storage (soil moisture + snow + "
+                "surface water + groundwater), not groundwater alone."
+            ),
             "area_km2": norm["area_km2"],
         },
         "aoi": {"bbox": bbox, "centroid": norm["centroid"]},
@@ -93,7 +97,7 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
     # product only runs through Jan 2017, so the series stopped at the GRACE
     # mission end; the mascon spans the GRACE/GRACE-FO gap to recent years.
     col = ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/MASCON_CRI").map(
-        lambda img: img.select("lwe_thickness").rename("lwe")
+        lambda img: img.select(["lwe_thickness", "uncertainty"]).rename(["lwe", "unc"])
             .copyProperties(img, ["system:time_start"])
     )
 
@@ -121,11 +125,17 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
     except Exception:  # pragma: no cover  — recharge is optional
         recharge_num = None
 
-    # Pull the series and the recharge value concurrently (two independent
-    # round-trips). If recharge evaluation fails it must not drop the series, so
-    # fall back to a series-only fetch.
-    recharge_val = None
-    objs = {"series": fc}
+    # Mean 1-sigma mascon uncertainty over the AOI (reported as an honest error bar).
+    unc_num = ee.Number(ee.Algorithms.If(
+        col.select("unc").mean().reduceRegion(
+            ee.Reducer.mean(), geom, 50000, maxPixels=1e9, bestEffort=True, tileScale=4
+        ).values().get(0), 0))
+
+    # Pull the series, recharge and uncertainty concurrently (independent round-
+    # trips). If an optional value fails it must not drop the series, so fall back
+    # to a series-only fetch.
+    recharge_val, uncertainty_cm = None, None
+    objs = {"series": fc, "unc": unc_num}
     if recharge_num is not None:
         objs["recharge"] = recharge_num
     try:
@@ -133,7 +143,8 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         points = ev["series"].get("features", [])
         if "recharge" in ev:
             recharge_val = round(float(ev["recharge"] or 0.0), 0)
-    except Exception:  # pragma: no cover  — recharge errored; series is essential
+        uncertainty_cm = round(float(ev.get("unc") or 0.0), 2)
+    except Exception:  # pragma: no cover  — an optional value errored; series is essential
         points = fc.getInfo().get("features", [])
 
     ts = np.array([(p["properties"]["t"], p["properties"]["v"]) for p in points
@@ -156,7 +167,7 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
 
     latest = ee.Image(col.sort("system:time_start", False).first())
     tile_url = tiles.image_tile_url(
-        latest.clip(geom),
+        latest.select("lwe").clip(geom),
         {"min": -20, "max": 20, "palette": ["#67000d", "#fb6a4a", "#ffffbf", "#74add1", "#313695"]})
 
     return {
@@ -166,6 +177,7 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
         "series": series,
         "stats": {
             "mean_anomaly_cm": round(mean_anom, 1),
+            "uncertainty_cm": uncertainty_cm,        # mean 1-sigma mascon error
             "depletion_trend_cm_yr": round(trend, 2),
             "stress_class": _classify(trend),
             "recharge_proxy_mm_yr": recharge_val,
@@ -175,6 +187,11 @@ def _groundwater_live(norm) -> dict[str, Any]:  # pragma: no cover
                 "GRACE resolves total water storage at regional scale (~330 km / "
                 "~150,000 km² per mascon). Values represent the wider aquifer system "
                 "around this AOI, not a single field or well."
+            ),
+            "storage_note": (
+                "This is TOTAL terrestrial water storage (soil moisture + snow + "
+                "surface water + groundwater). Isolating groundwater requires "
+                "removing soil-moisture/snow (e.g. GLDAS) — a planned refinement."
             ),
             "n_observations": int(ts.shape[0]),
             "area_km2": norm["area_km2"],
