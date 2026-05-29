@@ -106,10 +106,17 @@ def _make_model(name: str):
     return RandomForestClassifier(n_estimators=300, n_jobs=-1, random_state=42)
 
 
-def _train(X: np.ndarray, y: np.ndarray, model_name: str):
-    """Cross-validated metrics + fitted model + SHAP importance."""
+def _train(X: np.ndarray, y: np.ndarray, model_name: str, groups=None):
+    """Cross-validated metrics + fitted model + SHAP importance.
+
+    Uses spatial-block cross-validation when per-sample block ``groups`` are
+    supplied: random k-fold places nearby (autocorrelated) pixels in both train
+    and test folds and inflates the reported skill (Meyer & Pebesma, 2021), so
+    grouped folds give an honest estimate of performance on unseen ground.
+    """
     import shap
-    from sklearn.model_selection import cross_validate
+    from sklearn.model_selection import (
+        StratifiedGroupKFold, StratifiedKFold, cross_validate)
 
     if len(np.unique(y)) < 2:  # guard degenerate labels
         y = y.copy()
@@ -117,9 +124,15 @@ def _train(X: np.ndarray, y: np.ndarray, model_name: str):
 
     model = _make_model(model_name)
     n_splits = 5 if len(y) >= 50 else 3
+    splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    cv_strategy = "random k-fold"
+    if groups is not None and len(set(np.asarray(groups).tolist())) >= n_splits:
+        splitter = StratifiedGroupKFold(n_splits=n_splits)
+        cv_strategy = "spatial block CV"
+
     metrics: dict[str, Any] = {}
     try:
-        cv = cross_validate(model, X, y, cv=n_splits,
+        cv = cross_validate(model, X, y, cv=splitter, groups=groups,
                             scoring=["accuracy", "f1", "precision", "recall", "roc_auc"])
 
         def mean(k):
@@ -131,6 +144,7 @@ def _train(X: np.ndarray, y: np.ndarray, model_name: str):
                    "accuracy": mean("accuracy")}
     except Exception as exc:  # pragma: no cover
         log.warning("landslide CV failed: %s", exc)
+        cv_strategy = "none (CV failed)"
 
     model.fit(X, y)
 
@@ -152,6 +166,7 @@ def _train(X: np.ndarray, y: np.ndarray, model_name: str):
     )
     metrics["n_samples"] = int(len(y))
     metrics["positive_rate"] = round(float(y.mean()), 3)
+    metrics["cv_strategy"] = cv_strategy
     return metrics, model, importance
 
 
@@ -194,7 +209,9 @@ def _susceptibility_demo(norm, model_name, n_samples) -> dict[str, Any]:
     score = X @ w + rng.normal(0, 0.08, n_samples)
     y = (score > np.quantile(score, 0.7)).astype(int)  # ~30% landslide presence
 
-    metrics, fitted, importance = _train(X, y, model_name)
+    # ~6x6 spatial blocks (4-cell tiles) so CV holds out whole regions, not pixels.
+    groups = (ii // 4) * 1000 + (jj // 4)
+    metrics, fitted, importance = _train(X, y, model_name, groups=groups)
     full = np.column_stack([fields[name].ravel() for name in FACTORS])
     prob = fitted.predict_proba(full)[:, 1].reshape(n, n)
     grid = demo.field_to_grid(bbox, prob.round(3), value_key="susceptibility")
@@ -263,25 +280,33 @@ def _susceptibility_live(norm, model_name, inventory_asset, n_samples) -> dict[s
         scope = "this AOI" if buf == 0 else f"a ~{buf:g} deg region"
         inv_label = f"national landslide inventory ({len(pts)} presence pts, {scope})"
 
-    # Factor stack over the training region; pseudo-absence sampled there too.
+    # Factor stack over the training region. Pseudo-absence is sampled AWAY from
+    # known landslides (train region minus a 500 m buffer around presence) so we
+    # don't label near-failure pixels as stable — random absence near presence
+    # biases the model (Reichenbach et al., 2018).
     stack = _factor_stack(ee, train_geom)
-    absence = ee.FeatureCollection.randomPoints(train_geom, max(n_pos, 50), 42).map(
+    absence_region = train_geom.difference(presence.geometry().buffer(500), maxError=100)
+    absence = ee.FeatureCollection.randomPoints(absence_region, max(n_pos, 50), 42).map(
         lambda f: f.set("label", 0))
     points = presence.merge(absence)
 
+    # geometries=True so each sample carries coordinates -> spatial-block CV groups.
     samples = stack.sampleRegions(collection=points, properties=["label"], scale=90,
-                                  tileScale=4, geometries=False).getInfo()
-    rows, ys = [], []
+                                  tileScale=4, geometries=True).getInfo()
+    rows, ys, blocks = [], [], []
     for f in samples.get("features", []):
         p = f["properties"]
         if all(p.get(k) is not None for k in FACTORS) and p.get("label") is not None:
             rows.append([float(p[k]) for k in FACTORS])
             ys.append(int(p["label"]))
+            c = (f.get("geometry") or {}).get("coordinates") or [0.0, 0.0]
+            blocks.append(int(round(c[0] / 0.05)) * 100000 + int(round(c[1] / 0.05)))  # ~5 km blocks
     if len(rows) < 20:
         raise ValueError(f"only {len(rows)} usable samples after factor extraction")
 
-    # Core real-data result: cross-validated metrics on the sampled factors.
-    metrics, _fitted, importance = _train(np.array(rows, float), np.array(ys, int), model_name)
+    # Core real-data result: spatial-block cross-validated metrics on the factors.
+    metrics, _fitted, importance = _train(np.array(rows, float), np.array(ys, int),
+                                          model_name, groups=np.array(blocks))
 
     # Susceptibility map via an in-GEE RandomForest (probability). Non-fatal: if the
     # map step fails, the run still returns LIVE, real-data metrics.
