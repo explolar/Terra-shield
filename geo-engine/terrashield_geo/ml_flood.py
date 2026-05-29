@@ -28,12 +28,24 @@ from typing import Any
 import numpy as np
 
 from . import aoi as aoi_mod
-from . import demo, flood_factors, gee
+from . import demo, flood_factors, gee, tiles
 
 log = logging.getLogger("terrashield.geo.ml_flood")
 
 FACTORS = flood_factors.FACTOR_NAMES
 MODELS = ("gbm", "xgboost", "random_forest")
+
+# Susceptibility probability map (0-1) styling — same green→red ramp as the
+# AHP overlay so the two flood maps read consistently.
+_VIZ = {"min": 0, "max": 1,
+        "palette": ["#1a9850", "#91cf60", "#fee08b", "#fc8d59", "#d73027"]}
+_SUSC_LEGEND = [
+    {"label": "Very low", "color": "#1a9850"},
+    {"label": "Low", "color": "#91cf60"},
+    {"label": "Moderate", "color": "#fee08b"},
+    {"label": "High", "color": "#fc8d59"},
+    {"label": "Very high", "color": "#d73027"},
+]
 
 
 def _make_model(name: str):
@@ -197,5 +209,24 @@ def _flood_risk_live(norm, model, n_samples) -> dict[str, Any]:  # pragma: no co
     res = _train_and_explain(X, y, model, "live", groups=groups)
     res["label_source"] = label_source
     res["data_driven"] = True
+
+    # Susceptibility probability MAP via an in-GEE RandomForest trained on the same
+    # observed-flood label, so the data-driven model produces a tile like the AHP
+    # overlay. Non-fatal: if the map step fails, the run still returns live metrics.
+    label_band = "flooded_gfd" if "Global Flood Database" in label_source else "flooded_gsw"
+    try:
+        training = stack.sample(region=geom, scale=100, numPixels=n_samples, seed=42,
+                                tileScale=4)
+        clf = (ee.Classifier.smileRandomForest(120).setOutputMode("PROBABILITY")
+               .train(training, label_band, FACTORS))
+        prob = stack.select(FACTORS).classify(clf).rename("flood_susceptibility").clip(geom)
+        res["tile_url"] = tiles.image_tile_url(prob, _VIZ, resample="bilinear")
+        res["legend"] = _SUSC_LEGEND
+        mean = ee.Number(prob.reduceRegion(ee.Reducer.mean(), geom, 300,
+                         maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0))
+        res["metrics"]["mean_susceptibility"] = round(float(mean.getInfo() or 0), 3)
+    except Exception as exc:  # pragma: no cover  — map optional; metrics already live
+        log.warning("ml_flood map tile failed (metrics still live): %s", exc)
+
     res["aoi"] = {"bbox": norm["bbox"], "centroid": norm["centroid"]}
     return res

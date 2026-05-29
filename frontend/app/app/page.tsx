@@ -254,6 +254,22 @@ export default function Dashboard() {
       try {
         const res = await floodMlRisk(aoi, flood.ml_model);
         setMlRisk(res);
+        // Render the data-driven susceptibility tile on the map (live only).
+        if (res.tile_url) {
+          setLayer({
+            module: "flood",
+            product: "ml_risk",
+            source: res.source,
+            tile_url: res.tile_url,
+            grid: null,
+            legend: res.legend ?? [],
+            stats: {},
+            aoi: (res as unknown as { aoi?: LayerResponse["aoi"] }).aoi ?? {
+              bbox: [],
+              centroid: [],
+            },
+          } as unknown as LayerResponse);
+        }
       } catch (e: any) {
         setError(e?.detail || e?.message || "Model training failed.");
         setMlRisk(null);

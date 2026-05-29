@@ -267,6 +267,8 @@ export interface MlMetrics {
   cv_auc: number;
   n_samples: number;
   positive_rate: number;
+  cv_strategy?: string;
+  mean_susceptibility?: number;
 }
 
 export interface MlFeatureImportance {
@@ -283,6 +285,11 @@ export interface MlRiskResponse {
   top_factor: string;
   explainability: string;
   validation: string;
+  // LIVE: a data-driven flood-susceptibility probability tile + legend.
+  tile_url?: string | null;
+  legend?: LegendItem[];
+  label_source?: string;
+  data_driven?: boolean;
 }
 
 export type ClimateScenario = "ssp245" | "ssp585";
