@@ -137,7 +137,10 @@ def _train(X: np.ndarray, y: np.ndarray, model_name: str, groups=None):
 
         def mean(k):
             v = cv.get(f"test_{k}")
-            return round(float(np.nanmean(v)), 3) if v is not None else None
+            if v is None:
+                return None
+            m = float(np.nanmean(v))  # roc_auc etc. is NaN on single-class folds
+            return round(m, 3) if np.isfinite(m) else None
 
         metrics = {"f1": mean("f1"), "precision": mean("precision"),
                    "recall": mean("recall"), "roc_auc": mean("roc_auc"),
@@ -185,14 +188,14 @@ def susceptibility(aoi: dict[str, Any], model: str = "random_forest",
     live_error = None
     if gee.is_live():
         try:
-            return _susceptibility_live(norm, model, inventory_asset, n_samples)
+            return gee.json_safe(_susceptibility_live(norm, model, inventory_asset, n_samples))
         except Exception as exc:  # pragma: no cover
             live_error = f"{type(exc).__name__}: {exc}"
             log.warning("landslide live failed, demo fallback: %s", live_error)
     res = _susceptibility_demo(norm, model, n_samples)
     if live_error:
         res["live_error"] = live_error  # surfaced so a live failure is diagnosable
-    return res
+    return gee.json_safe(res)
 
 
 def _susceptibility_demo(norm, model_name, n_samples) -> dict[str, Any]:

@@ -102,6 +102,16 @@ def test_rate_limit_header_present():
     assert "X-Request-ID" in r.headers
 
 
+def test_nan_inf_serialized_as_null():
+    # Live GEE paths can emit a non-finite float (e.g. ROC-AUC on a single-class
+    # fold); the response must coerce it to null, not 500 the whole reply.
+    from app.main import SafeJSONResponse
+
+    body = SafeJSONResponse(content={"a": float("nan"), "b": [float("inf"), 2.0]}).body.decode()
+    assert "NaN" not in body and "Infinity" not in body
+    assert "null" in body
+
+
 def test_input_sanitization_guardrails():
     from app.core.sanitize import cap_output, clean_question
 

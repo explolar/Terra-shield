@@ -87,10 +87,16 @@ def _train_and_explain(X: np.ndarray, y: np.ndarray, model_name: str, source: st
         splitter = StratifiedGroupKFold(n_splits=n_splits)
         cv_strategy = "spatial block CV"
 
+    def _finite(v, nd=3):
+        f = float(v)
+        return round(f, nd) if np.isfinite(f) else None
+
     acc = cross_val_score(model, X, y, cv=splitter, groups=groups, scoring="accuracy")
     try:
+        # roc_auc is NaN for any single-class fold; nanmean + finite-guard so a
+        # bad fold yields None, not a JSON-breaking NaN.
         auc = cross_val_score(model, X, y, cv=splitter, groups=groups, scoring="roc_auc")
-        auc_mean = round(float(auc.mean()), 3)
+        auc_mean = _finite(np.nanmean(auc))
     except Exception:
         auc_mean = None
 
@@ -119,8 +125,8 @@ def _train_and_explain(X: np.ndarray, y: np.ndarray, model_name: str, source: st
         "product": "ml_risk",
         "source": source,
         "model": model_name,
-        "metrics": {"cv_accuracy": round(float(acc.mean()), 3),
-                    "cv_accuracy_std": round(float(acc.std()), 3),
+        "metrics": {"cv_accuracy": _finite(np.nanmean(acc)),
+                    "cv_accuracy_std": _finite(np.nanstd(acc)),
                     "cv_auc": auc_mean, "n_samples": int(len(y)),
                     "positive_rate": round(float(y.mean()), 3),
                     "cv_strategy": cv_strategy},
@@ -149,7 +155,7 @@ def flood_risk_ml(aoi: dict[str, Any], model: str = "gbm", n_samples: int = 800)
         model = "gbm"
     if gee.is_live():
         try:
-            return _flood_risk_live(norm, model, n_samples)
+            return gee.json_safe(_flood_risk_live(norm, model, n_samples))
         except Exception as exc:  # pragma: no cover
             log.warning("ml_flood live failed, demo fallback: %s", exc)
     rng = np.random.default_rng(abs(hash(tuple(round(b, 3) for b in norm["bbox"]))) % (2**32))
@@ -158,7 +164,7 @@ def flood_risk_ml(aoi: dict[str, Any], model: str = "gbm", n_samples: int = 800)
     res["label_source"] = "AHP-weighted composite (demo proxy)"
     res["data_driven"] = False
     res["aoi"] = {"bbox": norm["bbox"], "centroid": norm["centroid"]}
-    return res
+    return gee.json_safe(res)
 
 
 def _flood_risk_live(norm, model, n_samples) -> dict[str, Any]:  # pragma: no cover

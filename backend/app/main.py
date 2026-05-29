@@ -4,11 +4,26 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+import json
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from terrashield_geo import gee
+
+
+class SafeJSONResponse(JSONResponse):
+    """JSON response that coerces NaN/Inf to null app-wide. Live Earth Engine
+    paths can occasionally yield a non-finite float (e.g. ROC-AUC on a single-
+    class CV fold); Starlette's default render uses allow_nan=False and would
+    500 the whole reply with 'Out of range float values are not JSON compliant'."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(
+            gee.json_safe(content), ensure_ascii=False, allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 from .api.deps import require_api_key
 from .core.config import get_settings
@@ -49,6 +64,7 @@ def create_app() -> FastAPI:
         description="The AI Operating System for Climate Risk & Resilience.",
         version="0.1.0",
         lifespan=lifespan,
+        default_response_class=SafeJSONResponse,
         docs_url="/docs",
         openapi_tags=[
             {"name": "FloodAI", "description": "Flood susceptibility, SAR extent, road risk."},

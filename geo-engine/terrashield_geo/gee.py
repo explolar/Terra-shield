@@ -115,6 +115,22 @@ def status() -> dict:
     }
 
 
+def json_safe(obj: Any) -> Any:
+    """Recursively replace NaN/Inf floats with None so a result is strict-JSON
+    serializable. Starlette's JSONResponse uses ``allow_nan=False``, so a single
+    non-finite float (e.g. ROC-AUC from a single-class CV fold) would otherwise
+    raise "Out of range float values are not JSON compliant" for the whole reply."""
+    import math
+
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_safe(v) for v in obj]
+    return obj
+
+
 def evaluate_parallel(objs: dict[str, Any], max_workers: int = 6) -> dict[str, Any]:  # pragma: no cover
     """Evaluate several Earth Engine objects concurrently via ``getInfo``.
 
