@@ -52,7 +52,7 @@ export interface ClimateControlState {
 }
 
 export interface DroughtControlState {
-  product: "spi" | "vegetation";
+  product: "spi" | "spei" | "vegetation";
   scale_months: SpiScale;
 }
 
@@ -422,11 +422,12 @@ export function DroughtControls({
           onChange={(v) => setState({ ...state, product: v })}
           options={[
             { value: "spi", label: "SPI" },
-            { value: "vegetation", label: "Vegetation (VCI)" },
+            { value: "spei", label: "SPEI" },
+            { value: "vegetation", label: "Vegetation" },
           ]}
         />
       </div>
-      {state.product === "spi" && (
+      {(state.product === "spi" || state.product === "spei") && (
         <div>
           <SectionLabel>Accumulation scale</SectionLabel>
           <Toggle
@@ -444,7 +445,9 @@ export function DroughtControls({
       <p className="note-box text-[11px] leading-relaxed">
         {state.product === "spi"
           ? "Standardized Precipitation Index (SPI). Negative = drier than normal."
-          : "Vegetation Condition Index from satellite greenness. Low = crop or vegetation stress."}
+          : state.product === "spei"
+            ? "SPEI — like SPI but on the water balance (precipitation − evapotranspiration), so it also captures heat-driven drought."
+            : "Vegetation health from satellite greenness + land-surface temperature. Low = crop or vegetation stress."}
       </p>
       <RunButton loading={loading} onClick={onRun} label="Analyze" />
       {loading && <EeProgressHint />}

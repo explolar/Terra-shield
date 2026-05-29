@@ -164,6 +164,118 @@ def _spi_live(norm, scale_months) -> dict[str, Any]:  # pragma: no cover
     }
 
 
+def _standardize(hist: list, x) -> float:
+    """Normal standardization of a (possibly negative) water-balance series to a
+    z-score, clamped to ±3. The canonical SPEI fits a log-logistic (Vicente-
+    Serrano 2010); the Gaussian standardization is a common, stable operational
+    simplification for D = P − PET, which is roughly symmetric."""
+    import numpy as np
+
+    arr = np.array([h for h in hist if h is not None], dtype=float)
+    arr = arr[~np.isnan(arr)]
+    if arr.size < 5 or x is None:
+        return 0.0
+    mu, sd = float(arr.mean()), float(arr.std() or 1.0)
+    return round(float(np.clip((float(x) - mu) / sd, -3.0, 3.0)), 2)
+
+
+def spei(aoi: dict[str, Any], scale_months: int = 3) -> dict[str, Any]:
+    """Standardized Precipitation-Evapotranspiration Index (Vicente-Serrano 2010):
+    like SPI but on the water balance P − PET, so it captures heat-driven drought
+    that SPI misses — important for warming monsoon climates."""
+    norm = aoi_mod.normalize(aoi)
+    if scale_months not in SPI_SCALES:
+        scale_months = 3
+    if gee.is_live():
+        try:
+            return _spei_live(norm, scale_months)
+        except Exception as exc:  # pragma: no cover
+            log.warning("drought.spei live failed, demo fallback: %s", exc)
+    return _spei_demo(norm, scale_months)
+
+
+def _spei_demo(norm, scale_months) -> dict[str, Any]:
+    import numpy as np
+
+    bbox = norm["bbox"]
+    field = demo.smooth_field(bbox, 22, salt=f"drought:spei:{scale_months}")
+    spei_field = (field - 0.55) * 5.0  # drier bias — PET pulls the water balance down
+    grid = demo.field_to_grid(bbox, spei_field.round(2), value_key="spei")
+    mean_spei = float(spei_field.mean())
+    return {
+        "module": "drought", "product": "spei", "source": "demo",
+        "scale_months": scale_months, "tile_url": None, "grid": grid,
+        "legend": [{"label": l, "color": c} for l, _, c in SPI_CLASSES],
+        "stats": {
+            "mean_spei": round(mean_spei, 2),
+            "class": _classify_spi(mean_spei),
+            "drought_area_pct": round(float((spei_field <= -0.8).mean() * 100), 1),
+            "method": "P−PET standardized (demo)",
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": bbox, "centroid": norm["centroid"]},
+    }
+
+
+def _spei_live(norm, scale_months) -> dict[str, Any]:  # pragma: no cover
+    ee = gee.get_ee()
+    geom = aoi_mod.to_ee_geometry(norm)
+
+    # TerraClimate monthly water balance D = precip − PET (mm). PET band scale 0.1.
+    tc = ee.ImageCollection("IDAHO_EPSCOR/TERRACLIMATE")
+
+    def wbal(img):
+        img = ee.Image(img)
+        return (img.select("pr").subtract(img.select("pet").multiply(0.1))
+                .rename("d").copyProperties(img, ["system:time_start"]))
+
+    d_coll = tc.map(wbal)
+    last = ee.Date(tc.aggregate_max("system:time_start"))
+    end = ee.Date.fromYMD(last.get("year"), last.get("month"), 1)
+    end_month = end.get("month")
+    years = ee.List.sequence(1991, 2020)
+
+    def window_sum(y):
+        y = ee.Number(y)
+        e = ee.Date.fromYMD(y, end_month, 1)
+        s = e.advance(-scale_months, "month")
+        return d_coll.filterDate(s, e).sum().set("year", y)
+
+    hist_ic = ee.ImageCollection(years.map(window_sum))
+
+    def region_val(img):
+        v = ee.Image(img).reduceRegion(ee.Reducer.mean(), geom, 5000,
+                                       maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+        return ee.Algorithms.If(v, v, 0)
+
+    hist_vals = ee.List(hist_ic.toList(hist_ic.size()).map(region_val)).getInfo()
+    recent_img = d_coll.filterDate(end.advance(-scale_months, "month"), end).sum()
+    _rv = recent_img.reduceRegion(ee.Reducer.mean(), geom, 5000,
+                                  maxPixels=1e9, bestEffort=True, tileScale=4).values().get(0)
+    recent_val = ee.Number(ee.Algorithms.If(_rv, _rv, 0)).getInfo()
+    spei_value = _standardize(hist_vals, recent_val)
+
+    clim_mean = hist_ic.mean().rename("d")
+    clim_std = hist_ic.reduce(ee.Reducer.stdDev()).rename("d").max(1)
+    spei_img = recent_img.rename("d").subtract(clim_mean).divide(clim_std).rename("spei").clip(geom)
+    tile_url = tiles.image_tile_url(
+        spei_img, {"min": -2.5, "max": 2.5,
+                   "palette": ["#730000", "#ffaa00", "#ffffff", "#41b6c4", "#253494"]})
+
+    return {
+        "module": "drought", "product": "spei", "source": "live",
+        "scale_months": scale_months, "tile_url": tile_url, "grid": None,
+        "legend": [{"label": l, "color": c} for l, _, c in SPI_CLASSES],
+        "stats": {
+            "mean_spei": round(spei_value, 2),
+            "class": _classify_spi(spei_value),
+            "method": "P−PET standardized SPEI (TerraClimate; Vicente-Serrano 2010)",
+            "area_km2": norm["area_km2"],
+        },
+        "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
+    }
+
+
 def vegetation(aoi: dict[str, Any]) -> dict[str, Any]:
     """NDVI / Vegetation Condition Index anomaly (vegetation stress)."""
     norm = aoi_mod.normalize(aoi)
@@ -212,10 +324,32 @@ def _vegetation_live(norm) -> dict[str, Any]:  # pragma: no cover
     ndvi_max = hist.max().multiply(0.0001).clip(geom)
     vci = recent.subtract(ndvi_min).divide(ndvi_max.subtract(ndvi_min).max(0.001)).rename("vci")
     tile_url = tiles.image_tile_url(vci, {"min": 0, "max": 1, "palette": tiles.RAMPS["vegetation"]})
-    mean_vci = ee.Number(
-        vci.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=1000,
-                         maxPixels=1e9, bestEffort=True).get("vci")
-    ).getInfo()
+
+    # Thermal Condition Index (TCI) from MODIS LST, then the Vegetation Health
+    # Index VHI = 0.5·VCI + 0.5·TCI (Kogan 1995) — a composite that captures both
+    # moisture (VCI) and heat (TCI) stress, more robust than NDVI alone.
+    vhi = None
+    try:
+        lst = ee.ImageCollection("MODIS/061/MOD11A2").select("LST_Day_1km")
+        lst_last = ee.Date(lst.aggregate_max("system:time_start"))
+        lst_recent = lst.filterDate(lst_last.advance(-1, "month"), lst_last).mean().multiply(0.02).clip(geom)
+        lst_hist = lst.filterDate("2015-01-01", "2023-12-31")
+        lst_min = lst_hist.min().multiply(0.02).clip(geom)
+        lst_max = lst_hist.max().multiply(0.02).clip(geom)
+        tci = lst_max.subtract(lst_recent).divide(lst_max.subtract(lst_min).max(0.001)).rename("tci")
+        vhi = vci.multiply(0.5).add(tci.multiply(0.5)).rename("vhi")
+    except Exception:  # pragma: no cover  — LST optional
+        vhi = None
+
+    bands = vci if vhi is None else vci.addBands(vhi)
+    red = bands.reduceRegion(reducer=ee.Reducer.mean(), geometry=geom, scale=1000,
+                             maxPixels=1e9, bestEffort=True).getInfo()
+    mean_vci = float(red.get("vci") or 0)
+    mean_vhi = red.get("vhi")
+    stats = {"mean_vci": round(mean_vci, 3), "area_km2": norm["area_km2"]}
+    if mean_vhi is not None:
+        stats["mean_vhi"] = round(float(mean_vhi), 3)
+        stats["index"] = "Vegetation Health Index (0.5·VCI + 0.5·TCI; Kogan 1995)"
     return {
         "module": "drought",
         "product": "vegetation",
@@ -223,6 +357,6 @@ def _vegetation_live(norm) -> dict[str, Any]:  # pragma: no cover
         "tile_url": tile_url,
         "grid": None,
         "legend": tiles.build_legend("vegetation", ["Stressed", "", "Fair", "", "Healthy"]),
-        "stats": {"mean_vci": round(mean_vci, 3), "area_km2": norm["area_km2"]},
+        "stats": stats,
         "aoi": {"bbox": norm["bbox"], "centroid": norm["centroid"]},
     }

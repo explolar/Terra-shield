@@ -86,6 +86,8 @@ export function productValueConfig(product: string): {
       return { key: "flooded", range: [0, 1] };
     case "spi":
       return { key: "spi", range: [-2.5, 2.5] };
+    case "spei":
+      return { key: "spei", range: [-2.5, 2.5] };
     case "vegetation":
       return { key: "vci", range: [0, 1] };
     case "exposure":

@@ -27,6 +27,7 @@ import {
   climateProjection,
   climateExtremes,
   droughtSpi,
+  droughtSpei,
   droughtVegetation,
   floodMlRisk,
   floodMultiyear,
@@ -389,7 +390,9 @@ export default function Dashboard() {
         res =
           drought.product === "spi"
             ? await droughtSpi({ aoi, scale_months: drought.scale_months })
-            : await droughtVegetation({ aoi });
+            : drought.product === "spei"
+              ? await droughtSpei({ aoi, scale_months: drought.scale_months })
+              : await droughtVegetation({ aoi });
       } else if (moduleId === "infra") {
         res = await infraExposure({ aoi, hazard: infra.hazard });
       } else if (moduleId === "landslide") {

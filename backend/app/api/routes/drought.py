@@ -26,6 +26,19 @@ def spi(req: SpiRequest):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@router.post("/spei", response_model=LayerResponse)
+def spei(req: SpiRequest):
+    """SPEI — like SPI but on the P−PET water balance (captures heat-driven drought)."""
+    payload = req.model_dump()
+    try:
+        return cached(
+            "drought.spei", payload,
+            lambda: drought.spei(req.aoi.to_engine(), req.scale_months),
+        )
+    except aoi_mod.AOIError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/vegetation", response_model=LayerResponse)
 def vegetation(req: VegetationRequest):
     payload = req.model_dump()

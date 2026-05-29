@@ -153,6 +153,9 @@ export const climateExtremes = (
 export const droughtSpi = (body: { aoi: AOI; scale_months: SpiScale }) =>
   post<LayerResponse>("/drought/spi", body);
 
+export const droughtSpei = (body: { aoi: AOI; scale_months: SpiScale }) =>
+  post<LayerResponse>("/drought/spei", body);
+
 export const droughtVegetation = (body: { aoi: AOI }) =>
   post<LayerResponse>("/drought/vegetation", body);
 

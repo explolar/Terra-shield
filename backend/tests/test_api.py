@@ -58,6 +58,8 @@ def test_climate_projection_and_scenarios():
 
 def test_drought_and_infra():
     assert client.post("/api/v1/drought/spi", json={"aoi": AOI, "scale_months": 3}).status_code == 200
+    spei = client.post("/api/v1/drought/spei", json={"aoi": AOI, "scale_months": 6})
+    assert spei.status_code == 200 and "mean_spei" in spei.json()["stats"]
     assert client.post("/api/v1/drought/vegetation", json={"aoi": AOI}).status_code == 200
     assert client.post("/api/v1/infra/exposure", json={"aoi": AOI}).status_code == 200
 
